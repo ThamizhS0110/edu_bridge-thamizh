@@ -21,12 +21,29 @@ const registerUser = async (req, res) => {
     } = req.body;
 
     try {
+        // Validate required fields
+        if (!name || !email || !password || !student) {
+            console.log('Registration failed - Missing fields:', { name: !!name, email: !!email, password: !!password, student: !!student });
+            return res.status(400).json({ 
+                message: 'Missing required fields: name, email, password, and student type are required' 
+            });
+        }
+
+        // Validate student type
+        if (!['school', 'college'].includes(student)) {
+            console.log('Registration failed - Invalid student type:', student);
+            return res.status(400).json({ 
+                message: 'Student type must be either "school" or "college"' 
+            });
+        }
+
         // Check if user already exists
-        const userExists = await User.findOne({ email });
+        const userExists = await User.findOne({ email: email.toLowerCase() });
 
         if (userExists) {
+            console.log('Registration failed - Email already exists:', email);
             return res.status(400).json({ 
-                message: 'User with this email already exists' 
+                message: 'Email already exists' 
             });
         }
 
@@ -70,6 +87,7 @@ const registerUser = async (req, res) => {
 
         // Create user
         const user = await User.create(userData);
+        console.log('User created successfully:', { id: user._id, email: user.email, name: user.name, student: user.student });
 
         // Generate JWT token
         const token = jwt.sign(
@@ -84,7 +102,7 @@ const registerUser = async (req, res) => {
         );
 
         res.status(201).json({
-            message: 'User registered successfully',
+            message: 'User created successfully',
             token,
             user: {
                 id: user._id,
@@ -100,6 +118,21 @@ const registerUser = async (req, res) => {
         });
     } catch (error) {
         console.error('Registration error:', error);
+        
+        // Handle specific MongoDB errors
+        if (error.code === 11000) {
+            return res.status(400).json({ message: 'Email already exists' });
+        }
+        
+        // Handle validation errors
+        if (error.name === 'ValidationError') {
+            const validationErrors = Object.values(error.errors).map(err => err.message);
+            return res.status(400).json({ 
+                message: 'Validation failed', 
+                errors: validationErrors 
+            });
+        }
+        
         res.status(500).json({ message: 'Server error during registration' });
     }
 };
@@ -109,15 +142,25 @@ const loginUser = async (req, res) => {
     const { email, password } = req.body;
 
     try {
+        // Validate required fields
+        if (!email || !password) {
+            console.log('Login failed - Missing fields:', { email: !!email, password: !!password });
+            return res.status(400).json({ 
+                message: 'Missing fields: email and password are required' 
+            });
+        }
+
         // Check if user exists
-        const user = await User.findOne({ email });
+        const user = await User.findOne({ email: email.toLowerCase() });
         if (!user) {
+            console.log('Login failed - User not found:', email);
             return res.status(401).json({ message: 'Invalid email or password' });
         }
 
         // Check password
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
+            console.log('Login failed - Invalid password for user:', email);
             return res.status(401).json({ message: 'Invalid email or password' });
         }
 
@@ -133,6 +176,8 @@ const loginUser = async (req, res) => {
             { expiresIn: '30d' }
         );
 
+        console.log('Login successful for user:', { id: user._id, email: user.email, name: user.name });
+        
         res.status(200).json({
             message: 'Login successful',
             token,
