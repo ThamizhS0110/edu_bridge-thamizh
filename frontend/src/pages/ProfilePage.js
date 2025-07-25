@@ -1,13 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axiosConfig';
 import Button from '../components/shared/Button';
 import Input from '../components/shared/Input';
-import Modal from '../components/shared/Modal';
 import { toast } from 'react-toastify';
-import ReactCrop from 'react-image-crop';
-import 'react-image-crop/dist/ReactCrop.css';
 import {
   FaUserCircle,
   FaEdit,
@@ -15,10 +12,12 @@ import {
   FaTimes,
   FaCamera,
   FaInbox,
-  FaPaperPlane
+  FaPaperPlane,
+  FaTrash
 } from 'react-icons/fa';
 
 import ConnectionRequestCard from '../components/ConnectionRequestCard';
+
 const Label = styled.label`
   font-weight: 600;
   display: block;
@@ -52,46 +51,42 @@ const ProfileHeader = styled.div`
 
 const ProfilePictureContainer = styled.div`
   position: relative;
-  width: 150px;
-  height: 150px;
-  border-radius: 50%;
-  overflow: hidden;
   margin-bottom: ${({ theme }) => theme.spacing(2)};
-  border: 3px solid ${({ theme }) => theme.colors.accent};
-  box-shadow: 0 0 15px rgba(255, 205, 210, 0.5); /* Soft glow */
-  cursor: pointer;
-  transition: transform 0.3s ease-in-out;
-
-  &:hover {
-    transform: scale(1.05);
-  }
 `;
 
 const ProfilePicture = styled.img`
-  width: 100%;
-  height: 100%;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
   object-fit: cover;
+  border: 3px solid ${({ theme }) => theme.colors.accent};
+  box-shadow: 0 0 15px rgba(255, 205, 210, 0.5);
 `;
 
-const EditPictureOverlay = styled.div`
+const EditPictureButton = styled.button`
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.6);
+  bottom: 10px;
+  right: 10px;
+  background: ${({ theme }) => theme.colors.primary};
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
   display: flex;
-  justify-content: center;
   align-items: center;
-  opacity: 0;
-  transition: opacity 0.3s ease-in-out;
-  ${ProfilePictureContainer}:hover & {
-    opacity: 1;
+  justify-content: center;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  
+  &:hover {
+    background: ${({ theme }) => theme.colors.accent};
+    transform: scale(1.1);
   }
-  svg {
-    color: white;
-    font-size: 2.5rem;
-  }
+`;
+
+const HiddenFileInput = styled.input`
+  display: none;
 `;
 
 const ProfileName = styled.h2`
@@ -100,93 +95,53 @@ const ProfileName = styled.h2`
   color: ${({ theme }) => theme.colors.textPrimary};
 `;
 
-const ProfileRole = styled.p`
+const ProfileStudent = styled.p`
   font-size: 1.2rem;
-  color: ${({ theme }) => theme.colors.accent};
-  font-weight: 600;
-  margin-bottom: ${({ theme }) => theme.spacing(2)};
-  text-transform: capitalize;
+  color: ${({ theme }) => theme.colors.textSecondary};
+  margin-bottom: ${({ theme }) => theme.spacing(1)};
 `;
 
-const Section = styled.div`
+const ProfileInfo = styled.div`
   width: 100%;
-  margin-bottom: ${({ theme }) => theme.spacing(3)};
-  background: rgba(255, 255, 255, 0.05); /* Slightly darker glass */
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: ${({ theme }) => theme.spacing(4)};
+  
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const InfoSection = styled.div`
+  background: rgba(255, 255, 255, 0.05);
   padding: ${({ theme }) => theme.spacing(3)};
   border-radius: ${({ theme }) => theme.borderRadius};
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-  transition: all 0.3s ease-in-out;
-  animation: slideInRight 0.5s ease-out;
-
-  &:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
-  }
-
-  h3 {
-    color: ${({ theme }) => theme.colors.secondary};
-    margin-bottom: ${({ theme }) => theme.spacing(2)};
-    font-size: 1.8rem;
-    display: flex;
-    align-items: center;
-    gap: ${({ theme }) => theme.spacing(1)};
-  }
-
-  p {
-    color: ${({ theme }) => theme.colors.textSecondary};
-    line-height: 1.6;
-    font-size: 1.1rem;
-    margin-bottom: ${({ theme }) => theme.spacing(1)};
-  }
+  border: 1px solid ${({ theme }) => theme.colors.cardBorder};
 `;
 
-const EditButton = styled(Button)`
-  background: none;
-  border: 1px solid ${({ theme }) => theme.colors.accent};
-  color: ${({ theme }) => theme.colors.accent};
-  padding: ${({ theme }) => theme.spacing(1)} ${({ theme }) => theme.spacing(2)};
-  font-size: 0.9rem;
-  margin-left: ${({ theme }) => theme.spacing(2)};
+const SectionTitle = styled.h3`
+  color: ${({ theme }) => theme.colors.textPrimary};
+  margin-bottom: ${({ theme }) => theme.spacing(2)};
   display: flex;
   align-items: center;
-  gap: ${({ theme }) => theme.spacing(1)};
-
-  &:hover {
-    background: ${({ theme }) => theme.colors.accent};
-    color: ${({ theme }) => theme.colors.textPrimary};
-  }
+  justify-content: space-between;
 `;
 
-const SaveCancelButtons = styled.div`
-  display: flex;
-  gap: ${({ theme }) => theme.spacing(2)};
-  margin-top: ${({ theme }) => theme.spacing(2)};
-`;
-
-const TextArea = styled.textarea`
-  width: calc(100% - ${({ theme }) => theme.spacing(4)});
-  padding: ${({ theme }) => theme.spacing(1.5)} ${({ theme }) => theme.spacing(2)};
+const EditableField = styled.div`
   margin-bottom: ${({ theme }) => theme.spacing(2)};
-  border: 1px solid ${({ theme }) => theme.colors.inputBorder};
-  border-radius: ${({ theme }) => theme.borderRadius};
-  background-color: ${({ theme }) => theme.colors.inputBackground};
-  color: ${({ theme }) => theme.colors.textPrimary};
-  font-size: 1rem;
-  transition: all 0.3s ease-in-out;
-  box-sizing: border-box;
-  min-height: 100px;
-  resize: vertical;
-
-  &:focus {
-    outline: none;
-    border-color: ${({ theme }) => theme.colors.accent};
-    box-shadow: 0 0 0 3px rgba(255, 205, 210, 0.5);
-    background-color: rgba(255, 255, 255, 0.1);
+  
+  &:last-child {
+    margin-bottom: 0;
   }
 `;
 
-const TagsContainer = styled.div`
+const FieldValue = styled.p`
+  color: ${({ theme }) => theme.colors.textSecondary};
+  margin: 0;
+  min-height: 1.5em;
+`;
+
+const TagContainer = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: ${({ theme }) => theme.spacing(1)};
@@ -194,7 +149,7 @@ const TagsContainer = styled.div`
 `;
 
 const Tag = styled.span`
-  background-color: ${({ theme }) => theme.colors.secondary};
+  background: ${({ theme }) => theme.colors.accent};
   color: ${({ theme }) => theme.colors.textPrimary};
   padding: ${({ theme }) => theme.spacing(0.5)} ${({ theme }) => theme.spacing(1)};
   border-radius: ${({ theme }) => theme.borderRadius};
@@ -202,6 +157,7 @@ const Tag = styled.span`
   display: flex;
   align-items: center;
   gap: ${({ theme }) => theme.spacing(0.5)};
+  
   .remove-tag {
     cursor: pointer;
     font-size: 0.8rem;
@@ -251,51 +207,59 @@ const RequestsList = styled.div`
   width: 100%;
 `;
 
-
 const ProfilePage = () => {
     const { user } = useAuth();
     const [profile, setProfile] = useState(null);
     const [isEditingBio, setIsEditingBio] = useState(false);
     const [isEditingEducation, setIsEditingEducation] = useState(false);
     const [isEditingInterests, setIsEditingInterests] = useState(false);
+    const [isEditingGoals, setIsEditingGoals] = useState(false);
+    
+    // Temporary edit states
     const [tempBio, setTempBio] = useState('');
-    const [tempSchoolName, setTempSchoolName] = useState('');
-    const [tempCollegeName, setTempCollegeName] = useState('');
-    const [tempDepartment, setTempDepartment] = useState('');
-    const [tempInterestedDomains, setTempInterestedDomains] = useState([]);
+    const [tempEducation, setTempEducation] = useState({});
+    const [tempInterests, setTempInterests] = useState([]);
+    const [tempGoals, setTempGoals] = useState([]);
     const [newInterest, setNewInterest] = useState('');
+    const [newGoal, setNewGoal] = useState('');
 
-    const [showPhotoModal, setShowPhotoModal] = useState(false);
-    const [imageToCrop, setImageToCrop] = useState(null);
-    const [crop, setCrop] = useState({ aspect: 1 / 1, unit: '%', width: 90 });
-    const [completedCrop, setCompletedCrop] = useState(null);
-    const imgRef = useRef(null);
-    const [uploading, setUploading] = useState(false);
-
-    const [activeTab, setActiveTab] = useState('profile'); // 'profile', 'sent', 'received'
+    const [activeTab, setActiveTab] = useState('profile');
     const [sentRequests, setSentRequests] = useState([]);
     const [receivedRequests, setReceivedRequests] = useState([]);
-
+    const [uploading, setUploading] = useState(false);
 
     const fetchProfile = useCallback(async () => {
         if (user) {
             try {
-                const res = await api.get(`/profiles/my-profile`);
+                const res = await api.get(`/users/me`);
                 setProfile(res.data);
-                setTempBio(res.data.bio);
-                setTempSchoolName(res.data.schoolName);
-                setTempCollegeName(res.data.collegeName);
-                setTempDepartment(res.data.department);
-                setTempInterestedDomains(res.data.interestedDomains || []);
+                setTempBio(res.data.bio || '');
+                
+                // Set education fields based on student type
+                if (res.data.student === 'college') {
+                    setTempEducation({
+                        college: res.data.college || '',
+                        degree: res.data.degree || '',
+                        fieldOfStudy: res.data.fieldOfStudy || ''
+                    });
+                } else {
+                    setTempEducation({
+                        school: res.data.school || '',
+                        grade: res.data.grade || ''
+                    });
+                }
+                
+                setTempInterests(res.data.interests || []);
+                setTempGoals(res.data.goals || []);
             } catch (error) {
                 console.error('Error fetching profile:', error.response?.data?.message || error.message);
-                toast.error('Failed to load profile.');
+                toast.error('Failed to load user profile. It might not exist or be inaccessible.');
             }
         }
     }, [user]);
 
     const fetchSentRequests = useCallback(async () => {
-        if (user && user.role === 'junior') {
+        if (user && user.student === 'school') {
             try {
                 const res = await api.get('/connections/requests/sent');
                 setSentRequests(res.data);
@@ -306,7 +270,7 @@ const ProfilePage = () => {
     }, [user]);
 
     const fetchReceivedRequests = useCallback(async () => {
-        if (user && user.role === 'senior') {
+        if (user && user.student === 'college') {
             try {
                 const res = await api.get('/connections/requests/received');
                 setReceivedRequests(res.data);
@@ -316,17 +280,15 @@ const ProfilePage = () => {
         }
     }, [user]);
 
-
     useEffect(() => {
         fetchProfile();
         fetchSentRequests();
         fetchReceivedRequests();
     }, [fetchProfile, fetchSentRequests, fetchReceivedRequests]);
 
-
     const handleBioSave = async () => {
         try {
-            await api.put('/profiles/my-profile', { bio: tempBio });
+            await api.put('/users/me', { bio: tempBio });
             setProfile(prev => ({ ...prev, bio: tempBio }));
             setIsEditingBio(false);
             toast.success('Bio updated successfully!');
@@ -338,17 +300,8 @@ const ProfilePage = () => {
 
     const handleEducationSave = async () => {
         try {
-            await api.put('/profiles/my-profile', {
-                schoolName: tempSchoolName,
-                collegeName: tempCollegeName,
-                department: tempDepartment
-            });
-            setProfile(prev => ({
-                ...prev,
-                schoolName: tempSchoolName,
-                collegeName: tempCollegeName,
-                department: tempDepartment
-            }));
+            await api.put('/users/me', tempEducation);
+            setProfile(prev => ({ ...prev, ...tempEducation }));
             setIsEditingEducation(false);
             toast.success('Education details updated successfully!');
         } catch (error) {
@@ -359,317 +312,385 @@ const ProfilePage = () => {
 
     const handleInterestsSave = async () => {
         try {
-            await api.put('/profiles/my-profile', { interestedDomains: tempInterestedDomains });
-            setProfile(prev => ({ ...prev, interestedDomains: tempInterestedDomains }));
+            await api.put('/users/me', { interests: tempInterests });
+            setProfile(prev => ({ ...prev, interests: tempInterests }));
             setIsEditingInterests(false);
-            toast.success('Interested domains updated successfully!');
+            toast.success('Interests updated successfully!');
         } catch (error) {
-            console.error('Error updating interested domains:', error);
-            toast.error('Failed to update interested domains.');
+            console.error('Error updating interests:', error);
+            toast.error('Failed to update interests.');
         }
     };
 
-    const onSelectFile = (e) => {
-        if (e.target.files && e.target.files.length > 0) {
-            const reader = new FileReader();
-            reader.addEventListener('load', () => setImageToCrop(reader.result));
-            reader.readAsDataURL(e.target.files[0]);
-            setShowPhotoModal(true);
+    const handleGoalsSave = async () => {
+        try {
+            await api.put('/users/me', { goals: tempGoals });
+            setProfile(prev => ({ ...prev, goals: tempGoals }));
+            setIsEditingGoals(false);
+            toast.success('Goals updated successfully!');
+        } catch (error) {
+            console.error('Error updating goals:', error);
+            toast.error('Failed to update goals.');
         }
     };
 
-    const onLoad = useCallback((img) => {
-        imgRef.current = img;
-    }, []);
+    const handleImageUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
 
-    const getCroppedImg = async (image, crop) => {
-        const canvas = document.createElement('canvas');
-        const scaleX = image.naturalWidth / image.width;
-        const scaleY = image.naturalHeight / image.height;
-        canvas.width = crop.width;
-        canvas.height = crop.height;
-        const ctx = canvas.getContext('2d');
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            toast.error('Please select an image file');
+            return;
+        }
 
-        ctx.drawImage(
-            image,
-            crop.x * scaleX,
-            crop.y * scaleY,
-            crop.width * scaleX,
-            crop.height * scaleY,
-            0,
-            0,
-            crop.width,
-            crop.height
-        );
+        // Validate file size (5MB limit)
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error('Image size should be less than 5MB');
+            return;
+        }
 
-        return new Promise((resolve) => {
-            canvas.toBlob((blob) => {
-                resolve(blob);
-            }, 'image/jpeg');
-        });
-    };
-
-    const handleCropSave = async () => {
-        if (imgRef.current && completedCrop) {
-            setUploading(true);
-            const croppedImageBlob = await getCroppedImg(imgRef.current, completedCrop);
+        setUploading(true);
+        
+        try {
             const formData = new FormData();
-            formData.append('profilePicture', croppedImageBlob, 'profile.jpg');
+            formData.append('profilePicture', file);
 
-            try {
-                const res = await api.put('/profiles/my-profile/picture', formData, {
-                    headers: { 'Content-Type': 'multipart/form-data' },
-                });
-                setProfile(prev => ({ ...prev, profilePictureUrl: res.data.profilePictureUrl }));
-                toast.success('Profile picture updated!');
-                setShowPhotoModal(false);
-                setImageToCrop(null);
-                setCompletedCrop(null);
-            } catch (error) {
-                console.error('Error uploading profile picture:', error);
-                toast.error('Failed to update profile picture.');
-            } finally {
-                setUploading(false);
-            }
+            const res = await api.put('/users/me/picture', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            
+            setProfile(prev => ({ ...prev, profileImage: res.data.profileImage }));
+            toast.success('Profile picture updated successfully!');
+        } catch (error) {
+            console.error('Error uploading image:', error);
+            toast.error('Failed to upload image.');
+        } finally {
+            setUploading(false);
         }
     };
 
-    const handleAddInterest = () => {
-        if (newInterest.trim() && !tempInterestedDomains.includes(newInterest.trim())) {
-            setTempInterestedDomains([...tempInterestedDomains, newInterest.trim()]);
+    const addInterest = () => {
+        if (newInterest.trim() && !tempInterests.includes(newInterest.trim())) {
+            setTempInterests([...tempInterests, newInterest.trim()]);
             setNewInterest('');
         }
     };
 
-    const handleRemoveInterest = (interestToRemove) => {
-        setTempInterestedDomains(tempInterestedDomains.filter(interest => interest !== interestToRemove));
+    const removeInterest = (index) => {
+        setTempInterests(tempInterests.filter((_, i) => i !== index));
     };
 
-
-    const handleRequestAction = async (requestId, actionType) => {
-        try {
-            await api.put(`/connections/${actionType}/${requestId}`);
-            toast.success(`Request ${actionType} successfully!`);
-            // Refresh requests lists
-            fetchReceivedRequests();
-            fetchSentRequests();
-            fetchProfile(); // To update connections list on profile
-        } catch (error) {
-            console.error(`Error ${actionType} request:`, error);
-            toast.error(`Failed to ${actionType} request.`);
+    const addGoal = () => {
+        if (newGoal.trim() && !tempGoals.includes(newGoal.trim())) {
+            setTempGoals([...tempGoals, newGoal.trim()]);
+            setNewGoal('');
         }
     };
 
+    const removeGoal = (index) => {
+        setTempGoals(tempGoals.filter((_, i) => i !== index));
+    };
 
     if (!profile) {
-        return <p>Loading profile...</p>;
+        return (
+            <ProfileContainer>
+                <p>Loading profile...</p>
+            </ProfileContainer>
+        );
     }
 
     return (
         <ProfileContainer>
             <ProfileHeader>
-                <input
-                    type="file"
-                    id="profilePicUpload"
-                    accept="image/*"
-                    onChange={onSelectFile}
-                    style={{ display: 'none' }}
-                />
-                <ProfilePictureContainer onClick={() => document.getElementById('profilePicUpload').click()}>
-                    <ProfilePicture src={profile.profilePictureUrl || 'https://via.placeholder.com/150?text=No+Pic'} alt="Profile" />
-                    <EditPictureOverlay><FaCamera /></EditPictureOverlay>
+                <ProfilePictureContainer>
+                    <ProfilePicture 
+                        src={profile.profileImage || 'https://via.placeholder.com/150?text=No+Image'} 
+                        alt="Profile" 
+                        onError={(e) => {
+                            e.target.src = 'https://via.placeholder.com/150?text=No+Image';
+                        }}
+                    />
+                    <EditPictureButton onClick={() => document.getElementById('imageInput').click()}>
+                        {uploading ? '...' : <FaCamera />}
+                    </EditPictureButton>
+                    <HiddenFileInput
+                        id="imageInput"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        disabled={uploading}
+                    />
                 </ProfilePictureContainer>
-                <ProfileName>{profile.userId.name}</ProfileName>
-                <ProfileRole>{profile.userId.role}</ProfileRole>
+                <ProfileName>{profile.name}</ProfileName>
+                <ProfileStudent>
+                    {profile.student === 'college' ? 'College Student' : 'School Student'}
+                </ProfileStudent>
             </ProfileHeader>
 
             <TabContainer>
-                <TabButton active={activeTab === 'profile'} onClick={() => setActiveTab('profile')}>
-                    <FaUserCircle /> My Profile
+                <TabButton 
+                    active={activeTab === 'profile'} 
+                    onClick={() => setActiveTab('profile')}
+                >
+                    Profile
                 </TabButton>
-                {user.role === 'junior' && (
-                    <TabButton active={activeTab === 'sent'} onClick={() => setActiveTab('sent')}>
-                        <FaPaperPlane /> Sent Requests ({sentRequests.length})
+                {user.student === 'school' && (
+                    <TabButton 
+                        active={activeTab === 'sent'} 
+                        onClick={() => setActiveTab('sent')}
+                    >
+                        <FaPaperPlane /> Sent Requests
                     </TabButton>
                 )}
-                {user.role === 'senior' && (
-                    <TabButton active={activeTab === 'received'} onClick={() => setActiveTab('received')}>
-                        <FaInbox /> Received Requests ({receivedRequests.length})
+                {user.student === 'college' && (
+                    <TabButton 
+                        active={activeTab === 'received'} 
+                        onClick={() => setActiveTab('received')}
+                    >
+                        <FaInbox /> Received Requests
                     </TabButton>
                 )}
             </TabContainer>
 
             {activeTab === 'profile' && (
-                <>
-                    <Section>
-                        <h3>About Me {!isEditingBio && <EditButton onClick={() => setIsEditingBio(true)}><FaEdit /> Edit</EditButton>}</h3>
+                <ProfileInfo>
+                    {/* Bio Section */}
+                    <InfoSection>
+                        <SectionTitle>
+                            Bio
+                            <Button onClick={() => setIsEditingBio(!isEditingBio)}>
+                                {isEditingBio ? <FaTimes /> : <FaEdit />}
+                            </Button>
+                        </SectionTitle>
                         {isEditingBio ? (
-                            <>
-                                <TextArea
+                            <EditableField>
+                                <textarea
                                     value={tempBio}
                                     onChange={(e) => setTempBio(e.target.value)}
                                     placeholder="Tell us about yourself..."
+                                    rows={4}
+                                    style={{ width: '100%', padding: '10px', borderRadius: '5px' }}
                                 />
-                                <SaveCancelButtons>
+                                <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
                                     <Button onClick={handleBioSave}><FaCheck /> Save</Button>
-                                    <Button variant="secondary" onClick={() => { setIsEditingBio(false); setTempBio(profile.bio); }}><FaTimes /> Cancel</Button>
-                                </SaveCancelButtons>
-                            </>
+                                    <Button onClick={() => setIsEditingBio(false)}><FaTimes /> Cancel</Button>
+                                </div>
+                            </EditableField>
                         ) : (
-                            <p>{profile.bio || 'No bio yet. Click edit to add one!'}</p>
+                            <FieldValue>{profile.bio || 'No bio added yet.'}</FieldValue>
                         )}
-                    </Section>
+                    </InfoSection>
 
-                    <Section>
-                        <h3>Education {!isEditingEducation && <EditButton onClick={() => setIsEditingEducation(true)}><FaEdit /> Edit</EditButton>}</h3>
+                    {/* Education Section */}
+                    <InfoSection>
+                        <SectionTitle>
+                            Education
+                            <Button onClick={() => setIsEditingEducation(!isEditingEducation)}>
+                                {isEditingEducation ? <FaTimes /> : <FaEdit />}
+                            </Button>
+                        </SectionTitle>
                         {isEditingEducation ? (
-                            <>
-                                <Label>School Name:</Label>
-                                <Input
-                                    type="text"
-                                    value={tempSchoolName}
-                                    onChange={(e) => setTempSchoolName(e.target.value)}
-                                    placeholder="Your high school name"
-                                />
-                                {user.role === 'senior' && (
+                            <div>
+                                {profile.student === 'college' ? (
                                     <>
-                                        <Label>College Name:</Label>
-                                        <Input
-                                            type="text"
-                                            value={tempCollegeName}
-                                            onChange={(e) => setTempCollegeName(e.target.value)}
-                                            placeholder="Your college name"
-                                        />
-                                        <Label>Department:</Label>
-                                        <Input
-                                            type="text"
-                                            value={tempDepartment}
-                                            onChange={(e) => setTempDepartment(e.target.value)}
-                                            placeholder="Your department"
-                                        />
+                                        <EditableField>
+                                            <Label>College</Label>
+                                            <Input
+                                                value={tempEducation.college || ''}
+                                                onChange={(e) => setTempEducation({...tempEducation, college: e.target.value})}
+                                                placeholder="Enter college name"
+                                            />
+                                        </EditableField>
+                                        <EditableField>
+                                            <Label>Degree</Label>
+                                            <Input
+                                                value={tempEducation.degree || ''}
+                                                onChange={(e) => setTempEducation({...tempEducation, degree: e.target.value})}
+                                                placeholder="Enter degree"
+                                            />
+                                        </EditableField>
+                                        <EditableField>
+                                            <Label>Field of Study</Label>
+                                            <Input
+                                                value={tempEducation.fieldOfStudy || ''}
+                                                onChange={(e) => setTempEducation({...tempEducation, fieldOfStudy: e.target.value})}
+                                                placeholder="Enter field of study"
+                                            />
+                                        </EditableField>
+                                    </>
+                                ) : (
+                                    <>
+                                        <EditableField>
+                                            <Label>School</Label>
+                                            <Input
+                                                value={tempEducation.school || ''}
+                                                onChange={(e) => setTempEducation({...tempEducation, school: e.target.value})}
+                                                placeholder="Enter school name"
+                                            />
+                                        </EditableField>
+                                        <EditableField>
+                                            <Label>Grade</Label>
+                                            <Input
+                                                value={tempEducation.grade || ''}
+                                                onChange={(e) => setTempEducation({...tempEducation, grade: e.target.value})}
+                                                placeholder="Enter grade"
+                                            />
+                                        </EditableField>
                                     </>
                                 )}
-                                <SaveCancelButtons>
+                                <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
                                     <Button onClick={handleEducationSave}><FaCheck /> Save</Button>
-                                    <Button variant="secondary" onClick={() => {
-                                        setIsEditingEducation(false);
-                                        setTempSchoolName(profile.schoolName);
-                                        setTempCollegeName(profile.collegeName);
-                                        setTempDepartment(profile.department);
-                                    }}><FaTimes /> Cancel</Button>
-                                </SaveCancelButtons>
-                            </>
+                                    <Button onClick={() => setIsEditingEducation(false)}><FaTimes /> Cancel</Button>
+                                </div>
+                            </div>
                         ) : (
-                            <>
-                                <p><strong>School:</strong> {profile.schoolName || 'N/A'}</p>
-                                {user.role === 'senior' && (
+                            <div>
+                                {profile.student === 'college' ? (
                                     <>
-                                        <p><strong>College:</strong> {profile.collegeName || 'N/A'}</p>
-                                        <p><strong>Department:</strong> {profile.department || 'N/A'}</p>
+                                        <FieldValue><strong>College:</strong> {profile.college || 'Not specified'}</FieldValue>
+                                        <FieldValue><strong>Degree:</strong> {profile.degree || 'Not specified'}</FieldValue>
+                                        <FieldValue><strong>Field of Study:</strong> {profile.fieldOfStudy || 'Not specified'}</FieldValue>
+                                    </>
+                                ) : (
+                                    <>
+                                        <FieldValue><strong>School:</strong> {profile.school || 'Not specified'}</FieldValue>
+                                        <FieldValue><strong>Grade:</strong> {profile.grade || 'Not specified'}</FieldValue>
                                     </>
                                 )}
-                            </>
+                            </div>
                         )}
-                    </Section>
+                    </InfoSection>
 
-                    {user.role === 'junior' && (
-                        <Section>
-                            <h3>Interested Domains {!isEditingInterests && <EditButton onClick={() => setIsEditingInterests(true)}><FaEdit /> Edit</EditButton>}</h3>
-                            {isEditingInterests ? (
-                                <>
-                                    <TagInputWrapper>
-                                        <AddTagInput
-                                            type="text"
-                                            value={newInterest}
-                                            onChange={(e) => setNewInterest(e.target.value)}
-                                            onKeyPress={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddInterest(); } }}
-                                            placeholder="Add an interest (e.g., AI, Engineering)"
-                                        />
-                                        <Button onClick={handleAddInterest}>Add</Button>
-                                    </TagInputWrapper>
-                                    <TagsContainer>
-                                        {tempInterestedDomains.map((interest, index) => (
-                                            <Tag key={index}>
-                                                {interest} <span className="remove-tag" onClick={() => handleRemoveInterest(interest)}>&times;</span>
-                                            </Tag>
-                                        ))}
-                                    </TagsContainer>
-                                    <SaveCancelButtons>
-                                        <Button onClick={handleInterestsSave}><FaCheck /> Save</Button>
-                                        <Button variant="secondary" onClick={() => {
-                                            setIsEditingInterests(false);
-                                            setTempInterestedDomains(profile.interestedDomains || []);
-                                        }}><FaTimes /> Cancel</Button>
-                                    </SaveCancelButtons>
-                                </>
-                            ) : (
-                                <TagsContainer>
-                                    {profile.interestedDomains && profile.interestedDomains.length > 0 ? (
-                                        profile.interestedDomains.map((interest, index) => <Tag key={index}>{interest}</Tag>)
-                                    ) : (
-                                        <p>No interested domains added yet.</p>
-                                    )}
-                                </TagsContainer>
-                            )}
-                        </Section>
-                    )}
-                </>
+                    {/* Interests Section */}
+                    <InfoSection>
+                        <SectionTitle>
+                            Interests
+                            <Button onClick={() => setIsEditingInterests(!isEditingInterests)}>
+                                {isEditingInterests ? <FaTimes /> : <FaEdit />}
+                            </Button>
+                        </SectionTitle>
+                        {isEditingInterests ? (
+                            <div>
+                                <TagContainer>
+                                    {tempInterests.map((interest, index) => (
+                                        <Tag key={index}>
+                                            {interest}
+                                            <span className="remove-tag" onClick={() => removeInterest(index)}>
+                                                <FaTimes />
+                                            </span>
+                                        </Tag>
+                                    ))}
+                                </TagContainer>
+                                <TagInputWrapper>
+                                    <AddTagInput
+                                        value={newInterest}
+                                        onChange={(e) => setNewInterest(e.target.value)}
+                                        placeholder="Add an interest..."
+                                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addInterest())}
+                                    />
+                                    <Button onClick={addInterest}>Add</Button>
+                                </TagInputWrapper>
+                                <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
+                                    <Button onClick={handleInterestsSave}><FaCheck /> Save</Button>
+                                    <Button onClick={() => setIsEditingInterests(false)}><FaTimes /> Cancel</Button>
+                                </div>
+                            </div>
+                        ) : (
+                            <TagContainer>
+                                {profile.interests && profile.interests.length > 0 ? 
+                                    profile.interests.map((interest, index) => (
+                                        <Tag key={index}>{interest}</Tag>
+                                    )) : 
+                                    <FieldValue>No interests added yet.</FieldValue>
+                                }
+                            </TagContainer>
+                        )}
+                    </InfoSection>
+
+                    {/* Goals Section */}
+                    <InfoSection>
+                        <SectionTitle>
+                            Goals
+                            <Button onClick={() => setIsEditingGoals(!isEditingGoals)}>
+                                {isEditingGoals ? <FaTimes /> : <FaEdit />}
+                            </Button>
+                        </SectionTitle>
+                        {isEditingGoals ? (
+                            <div>
+                                <TagContainer>
+                                    {tempGoals.map((goal, index) => (
+                                        <Tag key={index}>
+                                            {goal}
+                                            <span className="remove-tag" onClick={() => removeGoal(index)}>
+                                                <FaTimes />
+                                            </span>
+                                        </Tag>
+                                    ))}
+                                </TagContainer>
+                                <TagInputWrapper>
+                                    <AddTagInput
+                                        value={newGoal}
+                                        onChange={(e) => setNewGoal(e.target.value)}
+                                        placeholder="Add a goal..."
+                                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addGoal())}
+                                    />
+                                    <Button onClick={addGoal}>Add</Button>
+                                </TagInputWrapper>
+                                <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
+                                    <Button onClick={handleGoalsSave}><FaCheck /> Save</Button>
+                                    <Button onClick={() => setIsEditingGoals(false)}><FaTimes /> Cancel</Button>
+                                </div>
+                            </div>
+                        ) : (
+                            <TagContainer>
+                                {profile.goals && profile.goals.length > 0 ? 
+                                    profile.goals.map((goal, index) => (
+                                        <Tag key={index}>{goal}</Tag>
+                                    )) : 
+                                    <FieldValue>No goals added yet.</FieldValue>
+                                }
+                            </TagContainer>
+                        )}
+                    </InfoSection>
+                </ProfileInfo>
             )}
 
-            {activeTab === 'sent' && user.role === 'junior' && (
-                <Section style={{ animation: 'slideInLeft 0.5s ease-out' }}>
+            {activeTab === 'sent' && (
+                <RequestsList>
                     <h3>Sent Connection Requests</h3>
-                    <RequestsList>
-                        {sentRequests.length > 0 ? (
-                            sentRequests.map((request) => (
-                                <ConnectionRequestCard
-                                    key={request._id}
-                                    request={request}
-                                    isSender={true}
-                                />
-                            ))
-                        ) : (
-                            <p>No sent connection requests.</p>
-                        )}
-                    </RequestsList>
-                </Section>
+                    {sentRequests.length > 0 ? (
+                        sentRequests.map((request) => (
+                            <ConnectionRequestCard
+                                key={request._id}
+                                request={request}
+                                type="sent"
+                                onUpdate={fetchSentRequests}
+                            />
+                        ))
+                    ) : (
+                        <p>No connection requests sent yet.</p>
+                    )}
+                </RequestsList>
             )}
 
-            {activeTab === 'received' && user.role === 'senior' && (
-                <Section style={{ animation: 'slideInRight 0.5s ease-out' }}>
+            {activeTab === 'received' && (
+                <RequestsList>
                     <h3>Received Connection Requests</h3>
-                    <RequestsList>
-                        {receivedRequests.length > 0 ? (
-                            receivedRequests.map((request) => (
-                                <ConnectionRequestCard
-                                    key={request._id}
-                                    request={request}
-                                    onAccept={() => handleRequestAction(request._id, 'accept')}
-                                    onReject={() => handleRequestAction(request._id, 'reject')}
-                                />
-                            ))
-                        ) : (
-                            <p>No received connection requests.</p>
-                        )}
-                    </RequestsList>
-                </Section>
+                    {receivedRequests.length > 0 ? (
+                        receivedRequests.map((request) => (
+                            <ConnectionRequestCard
+                                key={request._id}
+                                request={request}
+                                type="received"
+                                onUpdate={fetchReceivedRequests}
+                            />
+                        ))
+                    ) : (
+                        <p>No connection requests received yet.</p>
+                    )}
+                </RequestsList>
             )}
-
-            <Modal isOpen={showPhotoModal} onClose={() => setShowPhotoModal(false)}>
-                <h2>Crop your profile picture</h2>
-                {imageToCrop && (
-                    <>
-                        <div style={{ position: 'relative', width: '100%', height: '300px', marginBottom: '20px' }}>
-                            <ReactCrop crop={crop} onChange={c => setCrop(c)} onComplete={c => setCompletedCrop(c)} aspect={1}>
-                                <img src={imageToCrop} ref={imgRef} onLoad={onLoad} alt="Crop" style={{ maxWidth: '100%', maxHeight: '100%' }} />
-                            </ReactCrop>
-                        </div>
-                        <Button onClick={handleCropSave} disabled={!completedCrop || uploading}>
-                            {uploading ? 'Uploading...' : 'Save Cropped Image'}
-                        </Button>
-                    </>
-                )}
-            </Modal>
         </ProfileContainer>
     );
 };

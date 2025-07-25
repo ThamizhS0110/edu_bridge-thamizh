@@ -7,7 +7,6 @@ import Button from '../components/shared/Button';
 import { toast } from 'react-toastify';
 import { FaPaperPlane, FaUserFriends, FaComments } from 'react-icons/fa';
 
-
 const ProfileContainer = styled.div`
   display: flex;
   flex-direction: column;
@@ -46,40 +45,46 @@ const ProfileName = styled.h2`
   color: ${({ theme }) => theme.colors.textPrimary};
 `;
 
-const ProfileRole = styled.p`
+const ProfileStudent = styled.p`
   font-size: 1.2rem;
-  color: ${({ theme }) => theme.colors.accent};
-  font-weight: 600;
-  margin-bottom: ${({ theme }) => theme.spacing(2)};
-  text-transform: capitalize;
+  color: ${({ theme }) => theme.colors.textSecondary};
+  margin-bottom: ${({ theme }) => theme.spacing(1)};
 `;
 
-const Section = styled.div`
+const ProfileInfo = styled.div`
   width: 100%;
-  margin-bottom: ${({ theme }) => theme.spacing(3)};
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: ${({ theme }) => theme.spacing(4)};
+  margin-bottom: ${({ theme }) => theme.spacing(4)};
+  
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const InfoSection = styled.div`
   background: rgba(255, 255, 255, 0.05);
   padding: ${({ theme }) => theme.spacing(3)};
   border-radius: ${({ theme }) => theme.borderRadius};
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-  transition: all 0.3s ease-in-out;
-  animation: slideInLeft 0.5s ease-out;
+  border: 1px solid ${({ theme }) => theme.colors.cardBorder};
+`;
 
-  h3 {
-    color: ${({ theme }) => theme.colors.secondary};
-    margin-bottom: ${({ theme }) => theme.spacing(2)};
-    font-size: 1.8rem;
-  }
+const SectionTitle = styled.h3`
+  color: ${({ theme }) => theme.colors.textPrimary};
+  margin-bottom: ${({ theme }) => theme.spacing(2)};
+`;
 
-  p {
-    color: ${({ theme }) => theme.colors.textSecondary};
-    line-height: 1.6;
-    font-size: 1.1rem;
-    margin-bottom: ${({ theme }) => theme.spacing(1)};
+const FieldValue = styled.p`
+  color: ${({ theme }) => theme.colors.textSecondary};
+  margin: ${({ theme }) => theme.spacing(1)} 0;
+  
+  strong {
+    color: ${({ theme }) => theme.colors.textPrimary};
   }
 `;
 
-const TagsContainer = styled.div`
+const TagContainer = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: ${({ theme }) => theme.spacing(1)};
@@ -87,7 +92,7 @@ const TagsContainer = styled.div`
 `;
 
 const Tag = styled.span`
-  background-color: ${({ theme }) => theme.colors.secondary};
+  background: ${({ theme }) => theme.colors.accent};
   color: ${({ theme }) => theme.colors.textPrimary};
   padding: ${({ theme }) => theme.spacing(0.5)} ${({ theme }) => theme.spacing(1)};
   border-radius: ${({ theme }) => theme.borderRadius};
@@ -95,19 +100,32 @@ const Tag = styled.span`
 `;
 
 const ActionButtons = styled.div`
-    display: flex;
-    gap: ${({ theme }) => theme.spacing(2)};
-    margin-top: ${({ theme }) => theme.spacing(3)};
-    justify-content: center;
-    width: 100%;
+  display: flex;
+  gap: ${({ theme }) => theme.spacing(2)};
+  width: 100%;
+  max-width: 400px;
 `;
 
+const LoadingMessage = styled.p`
+  color: ${({ theme }) => theme.colors.textSecondary};
+  text-align: center;
+  font-size: 1.1rem;
+`;
+
+const ErrorMessage = styled.div`
+  color: ${({ theme }) => theme.colors.error};
+  text-align: center;
+  padding: ${({ theme }) => theme.spacing(4)};
+  
+  h3 {
+    margin-bottom: ${({ theme }) => theme.spacing(2)};
+  }
+`;
 
 const UserProfileView = () => {
     const { userId } = useParams();
-    const { user } = useAuth(); // The logged-in user
+    const { user } = useAuth();
     const navigate = useNavigate();
-
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -117,140 +135,211 @@ const UserProfileView = () => {
         requestReceived: false,
     });
 
-
     const fetchUserProfile = useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
-            const res = await api.get(`/profiles/${userId}`);
+            const res = await api.get(`/users/${userId}`);
             setProfile(res.data);
 
-            // Check connection status
-            const myProfileRes = await api.get(`/profiles/my-profile`);
-            const myConnections = myProfileRes.data.connections || [];
-            const isConnected = myConnections.includes(userId);
+            // Check connection status with current user
+            if (user) {
+                const myProfileRes = await api.get(`/users/me`);
+                const myConnections = myProfileRes.data.connections || [];
+                const isConnected = myConnections.includes(userId);
 
-            const pendingRequestSent = await api.get(`/connections/requests/sent`);
-            const sentToThisUser = pendingRequestSent.data.some(
-                (req) => req.receiverId._id === userId && req.status === 'pending'
-            );
+                const pendingRequestSent = await api.get(`/connections/requests/sent`);
+                const sentToThisUser = pendingRequestSent.data.some(
+                    (req) => req.receiverId._id === userId && req.status === 'pending'
+                );
 
-            const pendingRequestReceived = await api.get(`/connections/requests/received`);
-            const receivedFromThisUser = pendingRequestReceived.data.some(
-                (req) => req.senderId._id === userId && req.status === 'pending'
-            );
+                const pendingRequestReceived = await api.get(`/connections/requests/received`);
+                const receivedFromThisUser = pendingRequestReceived.data.some(
+                    (req) => req.senderId._id === userId && req.status === 'pending'
+                );
 
-            setConnectionStatus({
-                isAlreadyConnected: isConnected,
-                requestSent: sentToThisUser,
-                requestReceived: receivedFromThisUser
-            });
-
-        } catch (err) {
-            console.error('Error fetching user profile:', err);
-            setError('Failed to load user profile. It might not exist or be inaccessible.');
+                setConnectionStatus({
+                    isAlreadyConnected: isConnected,
+                    requestSent: sentToThisUser,
+                    requestReceived: receivedFromThisUser
+                });
+            }
+        } catch (error) {
+            console.error('Error fetching user profile:', error);
+            setError(error.response?.data?.message || 'Failed to load user profile. It might not exist or be inaccessible.');
         } finally {
             setLoading(false);
         }
     }, [userId, user]);
 
-
     useEffect(() => {
-        if (userId === user.id) { // If trying to view own profile, redirect
-            navigate('/profile/me');
-            return;
+        if (userId) {
+            fetchUserProfile();
         }
-        fetchUserProfile();
-    }, [userId, user, navigate, fetchUserProfile]);
+    }, [fetchUserProfile]);
 
-
-    const handleSendConnectionRequest = async () => {
+    const handleSendRequest = async () => {
         try {
-            await api.post('/connections/request', { receiverId: profile.userId._id });
+            await api.post('/connections/request', { receiverId: userId });
             toast.success('Connection request sent!');
             setConnectionStatus(prev => ({ ...prev, requestSent: true }));
         } catch (error) {
-            console.error('Error sending connection request:', error.response?.data?.message || error.message);
+            console.error('Error sending connection request:', error);
             toast.error(error.response?.data?.message || 'Failed to send connection request.');
         }
     };
 
     const handleStartChat = async () => {
         try {
-            const res = await api.post('/chat/start', { participantId: profile.userId._id });
+            const res = await api.post('/chat/get-or-create', { participantId: userId });
             if (res.data.chat?._id) {
                 navigate(`/chat/${res.data.chat._id}`);
             } else {
-                toast.error('Failed to start chat. Chat ID not returned.');
+                toast.error('Failed to start chat.');
             }
         } catch (error) {
-            console.error('Error starting chat:', error.response?.data?.message || error.message);
+            console.error('Error starting chat:', error);
             toast.error(error.response?.data?.message || 'Failed to start chat.');
         }
     };
 
-
     if (loading) {
-        return <p>Loading profile...</p>;
+        return (
+            <ProfileContainer>
+                <LoadingMessage>Loading profile...</LoadingMessage>
+            </ProfileContainer>
+        );
     }
 
     if (error) {
-        return <p style={{ color: 'red' }}>{error}</p>;
+        return (
+            <ProfileContainer>
+                <ErrorMessage>
+                    <h3>Profile Not Found</h3>
+                    <p>{error}</p>
+                    <Button onClick={() => navigate(-1)}>Go Back</Button>
+                </ErrorMessage>
+            </ProfileContainer>
+        );
     }
 
     if (!profile) {
-        return <p>No profile data found.</p>;
+        return (
+            <ProfileContainer>
+                <ErrorMessage>
+                    <h3>Profile Not Found</h3>
+                    <p>This profile does not exist or has been removed.</p>
+                    <Button onClick={() => navigate(-1)}>Go Back</Button>
+                </ErrorMessage>
+            </ProfileContainer>
+        );
     }
+
+    // Check if current user can send request (school students to college students)
+    const canSendRequest = user?.student === 'school' && 
+                          profile.student === 'college' && 
+                          !connectionStatus.isAlreadyConnected && 
+                          !connectionStatus.requestSent && 
+                          !connectionStatus.requestReceived;
 
     return (
         <ProfileContainer>
             <ProfileHeader>
-                <ProfilePicture src={profile.profilePictureUrl || 'https://via.placeholder.com/150?text=No+Pic'} alt="Profile" />
-                <ProfileName>{profile.userId.name} (@{profile.userId.username})</ProfileName>
-                <ProfileRole>{profile.userId.role}</ProfileRole>
-                <ActionButtons>
-                    {user.role === 'junior' && profile.userId.role === 'senior' && !connectionStatus.isAlreadyConnected && !connectionStatus.requestSent ? (
-                        <Button onClick={handleSendConnectionRequest}>
-                            <FaPaperPlane /> Send Connection Request
-                        </Button>
-                    ) : user.role === 'junior' && profile.userId.role === 'senior' && connectionStatus.requestSent ? (
-                        <Button disabled><FaPaperPlane /> Request Sent</Button>
-                    ) : connectionStatus.isAlreadyConnected ? (
-                        <Button onClick={handleStartChat}><FaComments /> Message</Button>
-                    ) : (
-                        <Button disabled><FaUserFriends /> Cannot connect with this user role</Button>
-                    )}
-                </ActionButtons>
+                <ProfilePicture 
+                    src={profile.profileImage || 'https://via.placeholder.com/150?text=No+Image'} 
+                    alt={`${profile.name}'s profile`}
+                    onError={(e) => {
+                        e.target.src = 'https://via.placeholder.com/150?text=No+Image';
+                    }}
+                />
+                <ProfileName>{profile.name}</ProfileName>
+                <ProfileStudent>
+                    {profile.student === 'college' ? 'College Student' : 'School Student'}
+                </ProfileStudent>
             </ProfileHeader>
 
-            <Section>
-                <h3>About Me</h3>
-                <p>{profile.bio || 'No bio available.'}</p>
-            </Section>
+            <ProfileInfo>
+                {/* Bio Section */}
+                <InfoSection>
+                    <SectionTitle>About</SectionTitle>
+                    <FieldValue>
+                        {profile.bio || 'No bio available.'}
+                    </FieldValue>
+                </InfoSection>
 
-            <Section>
-                <h3>Education</h3>
-                <p><strong>School:</strong> {profile.schoolName || 'N/A'}</p>
-                {profile.userId.role === 'senior' && (
+                {/* Education Section */}
+                <InfoSection>
+                    <SectionTitle>Education</SectionTitle>
+                    {profile.student === 'college' ? (
+                        <>
+                            <FieldValue><strong>College:</strong> {profile.college || 'Not specified'}</FieldValue>
+                            <FieldValue><strong>Degree:</strong> {profile.degree || 'Not specified'}</FieldValue>
+                            <FieldValue><strong>Field of Study:</strong> {profile.fieldOfStudy || 'Not specified'}</FieldValue>
+                        </>
+                    ) : (
+                        <>
+                            <FieldValue><strong>School:</strong> {profile.school || 'Not specified'}</FieldValue>
+                            <FieldValue><strong>Grade:</strong> {profile.grade || 'Not specified'}</FieldValue>
+                        </>
+                    )}
+                </InfoSection>
+
+                {/* Interests Section */}
+                {profile.interests && profile.interests.length > 0 && (
+                    <InfoSection>
+                        <SectionTitle>Interests</SectionTitle>
+                        <TagContainer>
+                            {profile.interests.map((interest, index) => (
+                                <Tag key={index}>{interest}</Tag>
+                            ))}
+                        </TagContainer>
+                    </InfoSection>
+                )}
+
+                {/* Goals Section */}
+                {profile.goals && profile.goals.length > 0 && (
+                    <InfoSection>
+                        <SectionTitle>Goals</SectionTitle>
+                        <TagContainer>
+                            {profile.goals.map((goal, index) => (
+                                <Tag key={index}>{goal}</Tag>
+                            ))}
+                        </TagContainer>
+                    </InfoSection>
+                )}
+            </ProfileInfo>
+
+            {/* Action Buttons */}
+            <ActionButtons>
+                {canSendRequest && (
+                    <Button onClick={handleSendRequest}>
+                        <FaPaperPlane /> Send Connection Request
+                    </Button>
+                )}
+                
+                {connectionStatus.requestSent && (
+                    <Button disabled>
+                        <FaPaperPlane /> Request Sent
+                    </Button>
+                )}
+                
+                {connectionStatus.requestReceived && (
+                    <Button disabled variant="secondary">
+                        Request Received
+                    </Button>
+                )}
+                
+                {connectionStatus.isAlreadyConnected && (
                     <>
-                        <p><strong>College:</strong> {profile.collegeName || 'N/A'}</p>
-                        <p><strong>Department:</strong> {profile.department || 'N/A'}</p>
+                        <Button disabled variant="success">
+                            <FaUserFriends /> Connected
+                        </Button>
+                        <Button onClick={handleStartChat}>
+                            <FaComments /> Message
+                        </Button>
                     </>
                 )}
-            </Section>
-
-            {profile.userId.role === 'junior' && (
-                <Section>
-                    <h3>Interested Domains</h3>
-                    <TagsContainer>
-                        {profile.interestedDomains && profile.interestedDomains.length > 0 ? (
-                            profile.interestedDomains.map((domain, index) => <Tag key={index}>{domain}</Tag>)
-                        ) : (
-                            <p>No interested domains listed.</p>
-                        )}
-                    </TagsContainer>
-                </Section>
-            )}
+            </ActionButtons>
         </ProfileContainer>
     );
 };

@@ -12,10 +12,14 @@ export const AuthProvider = ({ children }) => {
         const loadUser = async () => {
             if (token) {
                 try {
-                    // In a real app, you'd have a /me endpoint to validate token
-                    // For now, we'll decode the token or assume it's valid if present
-                    const decoded = JSON.parse(atob(token.split('.')[1])); // Simple decode
-                    setUser({ id: decoded.id, role: decoded.role, username: decoded.username, name: decoded.name }); // Extract basic user info from token
+                    // Decode the token to get basic user info
+                    const decoded = JSON.parse(atob(token.split('.')[1]));
+                    setUser({ 
+                        id: decoded.id, 
+                        student: decoded.student, 
+                        name: decoded.name, 
+                        email: decoded.email 
+                    });
                     api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
                 } catch (error) {
                     console.error("Invalid token:", error);
@@ -44,7 +48,11 @@ export const AuthProvider = ({ children }) => {
 
     const register = async (userData) => {
         try {
-            await api.post('/auth/register', userData);
+            const res = await api.post('/auth/register', userData);
+            // Auto-login after successful registration
+            localStorage.setItem('token', res.data.token);
+            setToken(res.data.token);
+            setUser(res.data.user);
             return true;
         } catch (error) {
             console.error('Registration failed:', error.response?.data?.message || error.message);
@@ -56,8 +64,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem('token');
         setToken(null);
         setUser(null);
-        api.defaults.headers.common['Authorization'] = ''; // Clear header
-        // Optionally hit backend logout endpoint if needed for session invalidation
+        api.defaults.headers.common['Authorization'] = '';
     };
 
     return (

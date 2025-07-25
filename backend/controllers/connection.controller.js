@@ -1,27 +1,32 @@
 const ConnectionRequest = require('../models/ConnectionRequest');
-const Profile = require('../models/Profile');
 const User = require('../models/User');
+const Chat = require('../models/Chat');
 
 // Send a connection request
 const sendConnectionRequest = async (req, res) => {
     const { receiverId } = req.body;
     const senderId = req.user.id;
-    const senderUser = await User.findById(senderId);
 
     if (senderId === receiverId) {
         return res.status(400).json({ message: 'Cannot send request to self' });
     }
 
-    const receiverUser = await User.findById(receiverId);
-    if (!receiverUser) {
-        return res.status(404).json({ message: 'Receiver user not found' });
-    }
-    // Only juniors can send requests to seniors
-    if (senderUser.role !== 'junior' || receiverUser.role !== 'senior') {
-        return res.status(403).json({ message: 'Only junior can send requests to senior' });
-    }
-
     try {
+        const senderUser = await User.findById(senderId);
+        const receiverUser = await User.findById(receiverId);
+
+        if (!receiverUser) {
+            return res.status(404).json({ message: 'Receiver user not found' });
+        }
+        
+        // Role-based request validation - only school students can send to college students
+        if (senderUser.student !== 'school' || receiverUser.student !== 'college') {
+            return res.status(403).json({ 
+                message: 'Only school students can send connection requests to college students' 
+            });
+        }
+
+        // Check if request already exists
         const existingRequest = await ConnectionRequest.findOne({
             senderId,
             receiverId,
@@ -31,10 +36,8 @@ const sendConnectionRequest = async (req, res) => {
             return res.status(400).json({ message: 'Connection request already sent' });
         }
 
-        const areConnected = await Profile.findOne({
-            userId: senderId,
-            connections: receiverId
-        });
+        // Check if already connected
+        const areConnected = senderUser.connections.includes(receiverId);
         if (areConnected) {
             return res.status(400).json({ message: 'Already connected' });
         }
@@ -46,22 +49,16 @@ const sendConnectionRequest = async (req, res) => {
         });
         await newRequest.save();
 
-        // Emit real-time notification to the receiver
-        req.app.get('socketio').to(receiverId).emit('newConnectionRequest', {
-            senderId: senderUser._id,
-            senderName: senderUser.name,
-            status: 'pending',
-            requestId: newRequest._id
-        });
-
-        // Send email notification to the receiver
-        const receiverEmail = receiverUser.email;
-        const subject = 'New Connection Request on EduBridge!';
-        const htmlContent = `<p>Hello ${receiverUser.name},</p>
-                            <p>You have a new connection request from <strong>${senderUser.name}</strong> on EduBridge.</p>
-                            <p>Log in to your account to accept or reject the request.</p>
-                            <p>Best regards,<br>The EduBridge Team</p>`;
-        sendEmail(receiverEmail, subject, htmlContent);
+        // Emit real-time notification to the receiver using Socket.IO
+        const io = req.app.get('socketio');
+        if (io) {
+            io.to(receiverId.toString()).emit('newConnectionRequest', {
+                senderId: senderUser._id,
+                senderName: senderUser.name,
+                status: 'pending',
+                requestId: newRequest._id
+            });
+        }
 
         res.status(201).json({ message: 'Connection request sent successfully!' });
     } catch (error) {
@@ -73,7 +70,7 @@ const sendConnectionRequest = async (req, res) => {
 // Accept a connection request
 const acceptConnectionRequest = async (req, res) => {
     const { requestId } = req.params;
-    const userId = req.user.id; // The user accepting the request (senior)
+    const userId = req.user.id;
 
     try {
         const request = await ConnectionRequest.findById(requestId);
@@ -91,36 +88,46 @@ const acceptConnectionRequest = async (req, res) => {
         request.status = 'accepted';
         await request.save();
 
-        // Add each other to connections lists in their profiles
-        await Profile.findOneAndUpdate(
-            { userId: request.senderId },
+        // Add each other to connections lists
+        await User.findByIdAndUpdate(
+            request.senderId,
             { $addToSet: { connections: request.receiverId } }
         );
-        await Profile.findOneAndUpdate(
-            { userId: request.receiverId },
+        await User.findByIdAndUpdate(
+            request.receiverId,
             { $addToSet: { connections: request.senderId } }
         );
 
         const senderUser = await User.findById(request.senderId);
         const receiverUser = await User.findById(request.receiverId);
 
-        // Emit real-time notification to the sender
-        req.app.get('socketio').to(request.senderId.toString()).emit('connectionAccepted', {
-            receiverId: receiverUser._id,
-            receiverName: receiverUser.name,
-            requestId: request._id
+        // Create a new chat between the connected users
+        const newChat = new Chat({
+            participants: [request.senderId, request.receiverId],
+            messages: [{
+                sender: request.senderId,
+                content: `Hi, I'm ${senderUser.name}, I'd like to connect with you on EduBridge!`,
+                timestamp: new Date()
+            }],
+            lastMessageAt: new Date()
         });
+        await newChat.save();
 
-        // Send email notification to the sender
-        const senderEmail = senderUser.email;
-        const subject = 'Your EduBridge Connection Request Was Accepted!';
-        const htmlContent = `<p>Hello ${senderUser.name},</p>
-                            <p>Good news! <strong>${receiverUser.name}</strong> has accepted your connection request on EduBridge.</p>
-                            <p>You can now start chatting with them!</p>
-                            <p>Best regards,<br>The EduBridge Team</p>`;
-        sendEmail(senderEmail, subject, htmlContent);
+        // Emit real-time notification to the sender
+        const io = req.app.get('socketio');
+        if (io) {
+            io.to(request.senderId.toString()).emit('connectionAccepted', {
+                receiverId: receiverUser._id,
+                receiverName: receiverUser.name,
+                requestId: request._id,
+                chatId: newChat._id
+            });
+        }
 
-        res.status(200).json({ message: 'Connection request accepted and users connected!' });
+        res.status(200).json({ 
+            message: 'Connection request accepted and users connected!',
+            chatId: newChat._id
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server error accepting connection request' });
@@ -130,7 +137,7 @@ const acceptConnectionRequest = async (req, res) => {
 // Reject a connection request
 const rejectConnectionRequest = async (req, res) => {
     const { requestId } = req.params;
-    const userId = req.user.id; // The user rejecting the request (senior)
+    const userId = req.user.id;
 
     try {
         const request = await ConnectionRequest.findById(requestId);
@@ -158,8 +165,10 @@ const rejectConnectionRequest = async (req, res) => {
 // Get received connection requests for the logged-in user
 const getReceivedConnectionRequests = async (req, res) => {
     try {
-        const requests = await ConnectionRequest.find({ receiverId: req.user.id, status: 'pending' })
-            .populate('senderId', 'username name profilePictureUrl'); // Populate sender info
+        const requests = await ConnectionRequest.find({ 
+            receiverId: req.user.id, 
+            status: 'pending' 
+        }).populate('senderId', 'name student college school'); // Populate sender info
 
         res.status(200).json(requests);
     } catch (error) {
@@ -172,7 +181,7 @@ const getReceivedConnectionRequests = async (req, res) => {
 const getSentConnectionRequests = async (req, res) => {
     try {
         const requests = await ConnectionRequest.find({ senderId: req.user.id })
-            .populate('receiverId', 'username name profilePictureUrl'); // Populate receiver info
+            .populate('receiverId', 'name student college school'); // Populate receiver info
 
         res.status(200).json(requests);
     } catch (error) {

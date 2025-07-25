@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../../context/AuthContext';
@@ -10,7 +10,7 @@ const HeaderContainer = styled.header`
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border-bottom: 1px solid ${({ theme }) => theme.colors.cardBorder};
-  padding: ${({ theme }) => theme.spacing(2)} ${({ theme }) => theme.spacing(4)};
+  padding: ${({ theme }) => theme.spacing(2)} 0; /* Remove horizontal padding to allow full width */
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -19,6 +19,16 @@ const HeaderContainer = styled.header`
   position: sticky;
   top: 0;
   animation: slideInLeft 0.5s ease-out;
+`;
+
+const HeaderContent = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 ${({ theme }) => theme.spacing(4)};
 `;
 
 const Logo = styled(Link)`
@@ -86,30 +96,127 @@ const LogoutButton = styled.button`
   }
 `;
 
+const LogoutConfirmModal = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+`;
+
+const ModalContent = styled.div`
+  background: ${({ theme }) => theme.colors.cardBackground};
+  padding: ${({ theme }) => theme.spacing(4)};
+  border-radius: ${({ theme }) => theme.borderRadius};
+  text-align: center;
+  max-width: 400px;
+  width: 90%;
+  backdrop-filter: blur(10px);
+  border: 1px solid ${({ theme }) => theme.colors.cardBorder};
+`;
+
+const ModalTitle = styled.h3`
+  color: ${({ theme }) => theme.colors.textPrimary};
+  margin-bottom: ${({ theme }) => theme.spacing(2)};
+`;
+
+const ModalText = styled.p`
+  color: ${({ theme }) => theme.colors.textSecondary};
+  margin-bottom: ${({ theme }) => theme.spacing(3)};
+`;
+
+const ModalActions = styled.div`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing(2)};
+  justify-content: center;
+`;
+
+const ModalButton = styled.button`
+  padding: ${({ theme }) => theme.spacing(1.5)} ${({ theme }) => theme.spacing(3)};
+  border: none;
+  border-radius: ${({ theme }) => theme.borderRadius};
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  
+  ${({ variant, theme }) => variant === 'confirm' ? `
+    background: ${theme.colors.error};
+    color: white;
+    &:hover {
+      background: ${theme.colors.errorHover || '#d32f2f'};
+    }
+  ` : `
+    background: ${theme.colors.cardBorder};
+    color: ${theme.colors.textPrimary};
+    &:hover {
+      background: ${theme.colors.accent};
+    }
+  `}
+`;
 
 const Header = () => {
     const { user, logout } = useAuth();
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+    const handleLogoutClick = () => {
+        setShowLogoutConfirm(true);
+    };
+
+    const handleLogoutConfirm = () => {
+        logout();
+        setShowLogoutConfirm(false);
+    };
+
+    const handleLogoutCancel = () => {
+        setShowLogoutConfirm(false);
+    };
 
     return (
-        <HeaderContainer>
-            <Logo to="/">EduBridge</Logo>
-            <NavLinks>
-                <NavLink to="/"><FaHome /> Home</NavLink>
-                {user ? (
-                    <>
-                        <NavLink to="/search"><FaSearch /> Search</NavLink>
-                        <NavLink to="/chat"><FaComments /> Chat</NavLink>
-                        <NavLink to="/profile/me"><FaUserCircle /> Profile</NavLink>
-                        <LogoutButton onClick={logout}><FaSignOutAlt /> Logout</LogoutButton>
-                    </>
-                ) : (
-                    <>
-                        <NavLink to="/login">Login</NavLink>
-                        <NavLink to="/register">Register</NavLink>
-                    </>
-                )}
-            </NavLinks>
-        </HeaderContainer>
+        <>
+            <HeaderContainer>
+                <HeaderContent>
+                    <Logo to="/">EduBridge</Logo>
+                    <NavLinks>
+                        <NavLink to="/"><FaHome /> Home</NavLink>
+                        {user ? (
+                            <>
+                                <NavLink to="/search"><FaSearch /> Search</NavLink>
+                                <NavLink to="/chat"><FaComments /> Chat</NavLink>
+                                <NavLink to="/profile/me"><FaUserCircle /> Profile</NavLink>
+                                <LogoutButton onClick={handleLogoutClick}><FaSignOutAlt /> Logout</LogoutButton>
+                            </>
+                        ) : (
+                            <>
+                                <NavLink to="/login">Login</NavLink>
+                                <NavLink to="/register">Register</NavLink>
+                            </>
+                        )}
+                    </NavLinks>
+                </HeaderContent>
+            </HeaderContainer>
+            
+            {showLogoutConfirm && (
+                <LogoutConfirmModal onClick={handleLogoutCancel}>
+                    <ModalContent onClick={(e) => e.stopPropagation()}>
+                        <ModalTitle>Confirm Logout</ModalTitle>
+                        <ModalText>Are you sure you want to logout from EduBridge?</ModalText>
+                        <ModalActions>
+                            <ModalButton variant="cancel" onClick={handleLogoutCancel}>
+                                Cancel
+                            </ModalButton>
+                            <ModalButton variant="confirm" onClick={handleLogoutConfirm}>
+                                Logout
+                            </ModalButton>
+                        </ModalActions>
+                    </ModalContent>
+                </LogoutConfirmModal>
+            )}
+        </>
     );
 };
 

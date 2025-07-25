@@ -1,97 +1,153 @@
 const User = require('../models/User');
-const Profile = require('../models/Profile');
+const ConnectionRequest = require('../models/ConnectionRequest');
 
 const searchProfiles = async (req, res) => {
-    const { query } = req.query; // Search query
-    const currentUserProfileId = req.user.id; // Logged-in user's ID
-
-    if (!query) {
-        return res.status(400).json({ message: 'Search query is required' });
-    }
+    const { query = '' } = req.query; // Search query (can be empty for default results)
+    const currentUserId = req.user.id;
+    const currentUser = req.user;
 
     try {
-        const users = await User.find({
-            _id: { $ne: currentUserProfileId }, // Exclude current user's profile
-            $or: [
-                { username: { $regex: query, $options: 'i' } },
+        // Only school students (juniors) can access search
+        if (currentUser.student !== 'school') {
+            return res.status(403).json({ 
+                message: 'Only school students can access the search feature' 
+            });
+        }
+
+        let searchCriteria = {
+            _id: { $ne: currentUserId }, // Exclude current user
+            student: 'college', // School students can only see college students
+            isActive: true // Only show active users
+        };
+
+        // If there's a search query, add text-based search criteria
+        if (query.trim()) {
+            searchCriteria.$or = [
                 { name: { $regex: query, $options: 'i' } },
-            ]
-        }).select('_id username name email role');
+                { college: { $regex: query, $options: 'i' } },
+                { degree: { $regex: query, $options: 'i' } },
+                { fieldOfStudy: { $regex: query, $options: 'i' } },
+                { interests: { $in: [new RegExp(query, 'i')] } },
+                { goals: { $in: [new RegExp(query, 'i')] } }
+            ];
+        }
 
-        const userIds = users.map(user => user._id);
-
-        const profiles = await Profile.find({
-            userId: { $in: userIds },
-            $or: [
-                { schoolName: { $regex: query, $options: 'i' } },
-                { collegeName: { $regex: query, $options: 'i' } },
-                { department: { $regex: query, $options: 'i' } },
-                { interestedDomains: { $regex: query, $options: 'i' } } // Search within array
-            ]
-        }).populate('userId', 'username name email role');
-
-        // Combine user and profile data, ensuring no duplicates and proper structure
-        const combinedResults = {};
-        profiles.forEach(profile => {
-            if (profile.userId) { // Ensure userId is populated
-                combinedResults[profile.userId._id.toString()] = {
-                    id: profile.userId._id,
-                    username: profile.userId.username,
-                    name: profile.userId.name,
-                    role: profile.userId.role,
-                    profilePictureUrl: profile.profilePictureUrl,
-                    schoolName: profile.schoolName,
-                    collegeName: profile.collegeName,
-                    department: profile.department,
-                    bio: profile.bio
-                };
-            }
-        });
-
-        users.forEach(user => {
-            if (!combinedResults[user._id.toString()]) {
-                combinedResults[user._id.toString()] = {
-                    id: user._id,
-                    username: user.username,
-                    name: user.name,
-                    role: user.role,
-                    profilePictureUrl: '', // Default if no profile picture
-                    schoolName: '',
-                    collegeName: '',
-                    department: '',
-                    bio: ''
-                };
-            }
-        });
+        const users = await User.find(searchCriteria)
+            .select('-password -email') // Don't send sensitive data
+            .limit(50); // Limit results
 
         // Check connection status for each result
-        const finalResults = await Promise.all(Object.values(combinedResults).map(async (result) => {
+        const results = await Promise.all(users.map(async (user) => {
+            // Check if there's a pending connection request
             const connectionStatus = await ConnectionRequest.findOne({
                 $or: [
-                    { senderId: currentUserProfileId, receiverId: result.id },
-                    { senderId: result.id, receiverId: currentUserProfileId }
+                    { senderId: currentUserId, receiverId: user._id },
+                    { senderId: user._id, receiverId: currentUserId }
                 ],
                 status: 'pending'
             });
-            const isConnected = await Profile.findOne({
-                userId: currentUserProfileId,
-                connections: result.id
-            });
+            
+            // Check if already connected
+            const isConnected = currentUser.connections.includes(user._id);
+
+            // Convert image buffer to base64 for frontend display
+            let profileImage = null;
+            if (user.image && user.image.data) {
+                profileImage = `data:${user.image.contentType};base64,${user.image.data.toString('base64')}`;
+            }
 
             return {
-                ...result,
-                requestSent: !!connectionStatus && connectionStatus.senderId.toString() === currentUserProfileId,
-                requestReceived: !!connectionStatus && connectionStatus.receiverId.toString() === currentUserProfileId,
-                isConnected: !!isConnected
+                id: user._id,
+                name: user.name,
+                student: user.student,
+                college: user.college,
+                degree: user.degree,
+                fieldOfStudy: user.fieldOfStudy,
+                school: user.school,
+                grade: user.grade,
+                interests: user.interests,
+                goals: user.goals,
+                bio: user.bio,
+                location: user.location,
+                profileImage: profileImage,
+                requestSent: !!connectionStatus && connectionStatus.senderId.toString() === currentUserId,
+                requestReceived: !!connectionStatus && connectionStatus.receiverId.toString() === currentUserId,
+                isConnected: isConnected,
+                createdAt: user.createdAt
             };
         }));
 
-
-        res.status(200).json(finalResults);
+        res.status(200).json(results);
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server error during search' });
     }
 };
 
-module.exports = { searchProfiles };
+// Get default/featured users (for when search is empty)
+const getDefaultUsers = async (req, res) => {
+    const currentUserId = req.user.id;
+    const currentUser = req.user;
+
+    try {
+        // Only school students can access this
+        if (currentUser.student !== 'school') {
+            return res.status(403).json({ 
+                message: 'Only school students can access this feature' 
+            });
+        }
+
+        // Get recent college users or featured users
+        const users = await User.find({
+            _id: { $ne: currentUserId },
+            student: 'college',
+            isActive: true
+        })
+        .select('-password -email')
+        .sort({ createdAt: -1 }) // Most recent first
+        .limit(20);
+
+        // Process results similar to search
+        const results = await Promise.all(users.map(async (user) => {
+            const connectionStatus = await ConnectionRequest.findOne({
+                $or: [
+                    { senderId: currentUserId, receiverId: user._id },
+                    { senderId: user._id, receiverId: currentUserId }
+                ],
+                status: 'pending'
+            });
+            
+            const isConnected = currentUser.connections.includes(user._id);
+
+            let profileImage = null;
+            if (user.image && user.image.data) {
+                profileImage = `data:${user.image.contentType};base64,${user.image.data.toString('base64')}`;
+            }
+
+            return {
+                id: user._id,
+                name: user.name,
+                student: user.student,
+                college: user.college,
+                degree: user.degree,
+                fieldOfStudy: user.fieldOfStudy,
+                interests: user.interests,
+                goals: user.goals,
+                bio: user.bio,
+                location: user.location,
+                profileImage: profileImage,
+                requestSent: !!connectionStatus && connectionStatus.senderId.toString() === currentUserId,
+                requestReceived: !!connectionStatus && connectionStatus.receiverId.toString() === currentUserId,
+                isConnected: isConnected,
+                createdAt: user.createdAt
+            };
+        }));
+
+        res.status(200).json(results);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error fetching default users' });
+    }
+};
+
+module.exports = { searchProfiles, getDefaultUsers };
