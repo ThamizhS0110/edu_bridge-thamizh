@@ -76,6 +76,29 @@ const updateMyProfile = async (req, res) => {
         const userId = req.user.id;
         const updateData = req.body;
 
+        // Handle base64 image upload
+        if (updateData.image && typeof updateData.image === 'string' && updateData.image.startsWith('data:image/')) {
+            try {
+                // Extract the base64 data and content type
+                const matches = updateData.image.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+                if (matches && matches.length === 3) {
+                    const contentType = matches[1];
+                    const base64Data = matches[2];
+                    const buffer = Buffer.from(base64Data, 'base64');
+                    
+                    updateData.image = {
+                        data: buffer,
+                        contentType: contentType
+                    };
+                } else {
+                    delete updateData.image; // Invalid format, skip image update
+                }
+            } catch (error) {
+                console.error('Error processing base64 image:', error);
+                delete updateData.image; // Skip image update on error
+            }
+        }
+
         // Remove sensitive fields that shouldn't be updated via this endpoint
         delete updateData.password;
         delete updateData.email;

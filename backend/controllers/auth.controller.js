@@ -30,10 +30,10 @@ const registerUser = async (req, res) => {
         }
 
         // Validate student type
-        if (!['school', 'college'].includes(student)) {
+        if (!['junior', 'senior'].includes(student)) {
             console.log('Registration failed - Invalid student type:', student);
             return res.status(400).json({ 
-                message: 'Student type must be either "school" or "college"' 
+                message: 'Student type must be either "junior" or "senior"' 
             });
         }
 
@@ -76,11 +76,11 @@ const registerUser = async (req, res) => {
         };
 
         // Add student-specific fields
-        if (student === 'college') {
+        if (student === 'senior') {
             userData.college = college || '';
             userData.degree = degree || '';
             userData.fieldOfStudy = fieldOfStudy || '';
-        } else if (student === 'school') {
+        } else if (student === 'junior') {
             userData.school = school || '';
             userData.grade = grade || '';
         }

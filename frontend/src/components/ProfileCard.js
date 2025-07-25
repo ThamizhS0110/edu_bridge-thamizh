@@ -73,7 +73,7 @@ const InterestTag = styled.span`
 
 const ProfileCard = ({ profile, onSendRequest, onStartChat, currentUserId, currentUserRole }) => {
     // Determine if the "Send Request" button should be shown and its state
-    const canSendRequest = currentUserRole === 'school' && profile.student === 'college' &&
+    const canSendRequest = currentUserRole === 'junior' && profile.student === 'senior' &&
                            !profile.requestSent && !profile.isConnected;
 
     const isRequestPending = profile.requestSent;
@@ -89,7 +89,7 @@ const ProfileCard = ({ profile, onSendRequest, onStartChat, currentUserId, curre
 
     // Display appropriate educational info
     const getEducationInfo = () => {
-        if (profile.student === 'college') {
+        if (profile.student === 'senior') {
             return {
                 institution: profile.college || 'N/A',
                 detail: profile.degree || profile.fieldOfStudy || 'N/A'
@@ -115,14 +115,14 @@ const ProfileCard = ({ profile, onSendRequest, onStartChat, currentUserId, curre
             />
             <Info>
                 <h3>{profile.name}</h3>
-                <p>{profile.student === 'college' ? 'College Student' : 'School Student'}</p>
+                <p>{profile.student === 'senior' ? 'Senior Student' : 'Junior Student'}</p>
                 <p>
-                    {profile.student === 'college' ? 'College: ' : 'School: '}
+                    {profile.student === 'senior' ? 'College: ' : 'School: '}
                     {educationInfo.institution}
                 </p>
                 {educationInfo.detail !== 'N/A' && (
                     <p>
-                        {profile.student === 'college' 
+                        {profile.student === 'senior' 
                             ? (profile.degree ? 'Degree: ' : 'Field: ') 
                             : 'Grade: '
                         }

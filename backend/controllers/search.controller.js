@@ -7,16 +7,16 @@ const searchProfiles = async (req, res) => {
     const currentUser = req.user;
 
     try {
-        // Only school students (juniors) can access search
-        if (currentUser.student !== 'school') {
+        // Only junior students can access search
+        if (currentUser.student !== 'junior') {
             return res.status(403).json({ 
-                message: 'Only school students can access the search feature' 
+                message: 'Only junior students can access the search feature' 
             });
         }
 
         let searchCriteria = {
             _id: { $ne: currentUserId }, // Exclude current user
-            student: 'college', // School students can only see college students
+            student: 'senior', // Junior students can only see senior students
             isActive: true // Only show active users
         };
 
@@ -90,17 +90,17 @@ const getDefaultUsers = async (req, res) => {
     const currentUser = req.user;
 
     try {
-        // Only school students can access this
-        if (currentUser.student !== 'school') {
+        // Only junior students can access this
+        if (currentUser.student !== 'junior') {
             return res.status(403).json({ 
-                message: 'Only school students can access this feature' 
+                message: 'Only junior students can access this feature' 
             });
         }
 
-        // Get recent college users or featured users
+        // Get recent senior users or featured users
         const users = await User.find({
             _id: { $ne: currentUserId },
-            student: 'college',
+            student: 'senior',
             isActive: true
         })
         .select('-password -email')

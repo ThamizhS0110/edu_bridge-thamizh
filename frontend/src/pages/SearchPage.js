@@ -77,13 +77,13 @@ const SearchPage = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
 
-    // Check if user has access (only school students)
-    if (user && user.student !== 'school') {
+    // Check if user has access (only juniors can search for seniors)
+    if (user && user.student !== 'junior') {
         return (
             <SearchContainer>
                 <AccessDenied>
                     <h2>Access Restricted</h2>
-                    <p>Only school students can access the search feature to find college mentors.</p>
+                    <p>Only junior students can access the search feature to find senior mentors.</p>
                 </AccessDenied>
             </SearchContainer>
         );
@@ -102,7 +102,7 @@ const SearchPage = () => {
             }
         };
 
-        if (user && user.student === 'school') {
+        if (user && user.student === 'junior') {
             loadDefaultUsers();
         }
     }, [user]);
@@ -174,7 +174,7 @@ const SearchPage = () => {
 
     return (
         <SearchContainer>
-            <h2>Find College Mentors</h2>
+            <h2>Find Senior Mentors</h2>
             <SearchBar as="form" onSubmit={handleSearch}>
                 <Input
                     type="text"
@@ -188,7 +188,7 @@ const SearchPage = () => {
             </SearchBar>
 
             {isShowingDefaults && (
-                <SectionTitle>Featured College Students</SectionTitle>
+                <SectionTitle>Featured Senior Students</SectionTitle>
             )}
 
             <ResultsGrid>
@@ -207,7 +207,7 @@ const SearchPage = () => {
                     !loading && !initialLoading && (
                         <NoResults>
                             {isShowingDefaults 
-                                ? "No college students available right now. Check back later!" 
+                                ? "No senior students available right now. Check back later!" 
                                 : "No profiles found. Try a different search query!"
                             }
                         </NoResults>

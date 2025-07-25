@@ -25,7 +25,7 @@ const RegisterPage = () => {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [student, setStudent] = useState('school');
+    const [student, setStudent] = useState('junior');
     const navigate = useNavigate();
     const { register } = useAuth();
     const [loading, setLoading] = useState(false);
@@ -88,8 +88,8 @@ const RegisterPage = () => {
             <FormField>
                 <Label htmlFor="student">I am a:</Label>
                 <select id="student" value={student} onChange={(e) => setStudent(e.target.value)} required>
-                    <option value="school">School Student</option>
-                    <option value="college">College Student</option>
+                    <option value="junior">Junior (School Student)</option>
+                    <option value="senior">Senior (College Student)</option>
                 </select>
             </FormField>
             <Button type="submit" disabled={loading}>

@@ -5,7 +5,7 @@ const User = require('../models/User');
 const getMyChats = async (req, res) => {
     try {
         const chats = await Chat.find({ participants: req.user.id })
-            .populate('participants', 'name student college school')
+            .populate('participants', 'name student college school image')
             .sort({ lastMessageAt: -1 });
 
         // Convert any images to base64 for display
@@ -55,7 +55,8 @@ const getChatMessages = async (req, res) => {
 
 // Send a message
 const sendMessage = async (req, res) => {
-    const { chatId, content } = req.body;
+    const chatId = req.params.chatId;
+    const { content } = req.body;
     const senderId = req.user.id;
 
     if (!content) {
