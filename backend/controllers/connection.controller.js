@@ -19,10 +19,10 @@ const sendConnectionRequest = async (req, res) => {
             return res.status(404).json({ message: 'Receiver user not found' });
         }
         
-        // Role-based request validation - only school students can send to college students
-        if (senderUser.student !== 'school' || receiverUser.student !== 'college') {
+        // Role-based request validation - only junior students can send to senior students
+        if (senderUser.student !== 'junior' || receiverUser.student !== 'senior') {
             return res.status(403).json({ 
-                message: 'Only school students can send connection requests to college students' 
+                message: 'Only junior students can send connection requests to senior students' 
             });
         }
 
