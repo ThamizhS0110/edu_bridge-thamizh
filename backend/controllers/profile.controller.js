@@ -2,6 +2,65 @@ const Profile = require('../models/Profile');
 const User = require('../models/User');
 const uploadToCloudinary = require('../utils/cloudinary');
 
+// Get user profile (either own or another user's) - NEW FUNCTION
+const getUserProfile = async (req, res) => {
+    try {
+        let userId;
+        
+        // If accessing /users/me, use authenticated user's ID
+        if (req.params.userId === undefined || req.params.userId === 'me') {
+            userId = req.user.id;
+        } else {
+            userId = req.params.userId;
+        }
+
+        const user = await User.findById(userId).select('-password');
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const profile = await Profile.findOne({ userId: user._id }).populate('userId', 'username name email role');
+        if (!profile) {
+            return res.status(404).json({ message: 'Profile not found' });
+        }
+
+        res.status(200).json(profile);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error fetching profile' });
+    }
+};
+
+// Update my profile - NEW FUNCTION
+const updateMyProfile = async (req, res) => {
+    try {
+        const userId = req.user.id; // Get user ID from authenticated token
+        const { bio, schoolName, collegeName, department, interestedDomains, achievements } = req.body;
+
+        const profile = await Profile.findOne({ userId });
+        if (!profile) {
+            return res.status(404).json({ message: 'Profile not found' });
+        }
+
+        // Update fields if provided
+        if (bio !== undefined) profile.bio = bio;
+        if (schoolName !== undefined) profile.schoolName = schoolName;
+        if (collegeName !== undefined) profile.collegeName = collegeName;
+        if (department !== undefined) profile.department = department;
+        if (interestedDomains !== undefined) profile.interestedDomains = interestedDomains;
+        if (achievements !== undefined) profile.achievements = achievements;
+
+        await profile.save();
+        
+        // Populate the profile with user data before returning
+        const updatedProfile = await Profile.findOne({ userId }).populate('userId', 'username name email role');
+        res.status(200).json({ message: 'Profile updated successfully', profile: updatedProfile });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error updating profile' });
+    }
+};
+
 // Get user profile (either own or another user's)
 const getProfile = async (req, res) => {
     try {
@@ -81,4 +140,4 @@ const updateProfilePicture = async (req, res) => {
     }
 };
 
-module.exports = { getProfile, updateProfile, updateProfilePicture };
+module.exports = { getUserProfile, updateMyProfile, getProfile, updateProfile, updateProfilePicture };

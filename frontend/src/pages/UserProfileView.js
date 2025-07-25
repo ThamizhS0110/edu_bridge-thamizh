@@ -122,11 +122,11 @@ const UserProfileView = () => {
         setLoading(true);
         setError(null);
         try {
-            const res = await api.get(`/profiles/${userId}`);
+            const res = await api.get(`/users/${userId}`);
             setProfile(res.data);
 
             // Check connection status
-            const myProfileRes = await api.get(`/profiles/my-profile`);
+            const myProfileRes = await api.get(`/users/me`);
             const myConnections = myProfileRes.data.connections || [];
             const isConnected = myConnections.includes(userId);
 

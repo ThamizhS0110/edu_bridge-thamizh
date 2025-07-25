@@ -7,6 +7,7 @@ const { Server } = require('socket.io'); // For Socket.IO
 
 const authRoutes = require('./routes/auth.routes');
 const profileRoutes = require('./routes/profile.routes');
+const usersRoutes = require('./routes/users.routes'); // Add users routes
 const connectionRoutes = require('./routes/connection.routes');
 const searchRoutes = require('./routes/search.routes');
 const chatRoutes = require('./routes/chat.routes');
@@ -29,8 +30,12 @@ mongoose.connect(process.env.MONGO_URI)
 app.use(cors());
 app.use(express.json()); // To parse JSON request bodies
 
+// Store Socket.IO instance in app context for controllers to access
+app.set('socketio', io);
+
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/users', usersRoutes); // Add users routes
 app.use('/api/profiles', profileRoutes);
 app.use('/api/connections', connectionRoutes);
 app.use('/api/search', searchRoutes);

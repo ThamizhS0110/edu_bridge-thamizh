@@ -280,7 +280,7 @@ const ProfilePage = () => {
     const fetchProfile = useCallback(async () => {
         if (user) {
             try {
-                const res = await api.get(`/profiles/my-profile`);
+                const res = await api.get(`/users/me`);
                 setProfile(res.data);
                 setTempBio(res.data.bio);
                 setTempSchoolName(res.data.schoolName);
@@ -289,7 +289,7 @@ const ProfilePage = () => {
                 setTempInterestedDomains(res.data.interestedDomains || []);
             } catch (error) {
                 console.error('Error fetching profile:', error.response?.data?.message || error.message);
-                toast.error('Failed to load profile.');
+                toast.error('Failed to load user profile. It might not exist or be inaccessible.');
             }
         }
     }, [user]);
@@ -326,7 +326,7 @@ const ProfilePage = () => {
 
     const handleBioSave = async () => {
         try {
-            await api.put('/profiles/my-profile', { bio: tempBio });
+            await api.put('/users/me', { bio: tempBio });
             setProfile(prev => ({ ...prev, bio: tempBio }));
             setIsEditingBio(false);
             toast.success('Bio updated successfully!');
@@ -338,7 +338,7 @@ const ProfilePage = () => {
 
     const handleEducationSave = async () => {
         try {
-            await api.put('/profiles/my-profile', {
+            await api.put('/users/me', {
                 schoolName: tempSchoolName,
                 collegeName: tempCollegeName,
                 department: tempDepartment
@@ -359,7 +359,7 @@ const ProfilePage = () => {
 
     const handleInterestsSave = async () => {
         try {
-            await api.put('/profiles/my-profile', { interestedDomains: tempInterestedDomains });
+            await api.put('/users/me', { interestedDomains: tempInterestedDomains });
             setProfile(prev => ({ ...prev, interestedDomains: tempInterestedDomains }));
             setIsEditingInterests(false);
             toast.success('Interested domains updated successfully!');
@@ -417,7 +417,7 @@ const ProfilePage = () => {
             formData.append('profilePicture', croppedImageBlob, 'profile.jpg');
 
             try {
-                const res = await api.put('/profiles/my-profile/picture', formData, {
+                const res = await api.put('/users/me/picture', formData, {
                     headers: { 'Content-Type': 'multipart/form-data' },
                 });
                 setProfile(prev => ({ ...prev, profilePictureUrl: res.data.profilePictureUrl }));

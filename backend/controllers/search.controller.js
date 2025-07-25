@@ -1,26 +1,38 @@
 const User = require('../models/User');
 const Profile = require('../models/Profile');
+const ConnectionRequest = require('../models/ConnectionRequest'); // Import missing model
 
 const searchProfiles = async (req, res) => {
     const { query } = req.query; // Search query
-    const currentUserProfileId = req.user.id; // Logged-in user's ID
+    const currentUserId = req.user.id; // Logged-in user's ID
+    const currentUser = req.user; // Get current user info
 
     if (!query) {
         return res.status(400).json({ message: 'Search query is required' });
     }
 
     try {
-        const users = await User.find({
-            _id: { $ne: currentUserProfileId }, // Exclude current user's profile
+        let searchCriteria = {
+            _id: { $ne: currentUserId }, // Exclude current user's profile
             $or: [
                 { username: { $regex: query, $options: 'i' } },
                 { name: { $regex: query, $options: 'i' } },
             ]
-        }).select('_id username name email role');
+        };
 
+        // Role-based filtering
+        if (currentUser.role === 'junior') {
+            // Juniors should only see seniors
+            searchCriteria.role = 'senior';
+        } else if (currentUser.role === 'senior') {
+            // Seniors should only see other seniors (college mates)
+            searchCriteria.role = 'senior';
+        }
+
+        const users = await User.find(searchCriteria).select('_id username name email role');
         const userIds = users.map(user => user._id);
 
-        const profiles = await Profile.find({
+        let profileSearchCriteria = {
             userId: { $in: userIds },
             $or: [
                 { schoolName: { $regex: query, $options: 'i' } },
@@ -28,7 +40,17 @@ const searchProfiles = async (req, res) => {
                 { department: { $regex: query, $options: 'i' } },
                 { interestedDomains: { $regex: query, $options: 'i' } } // Search within array
             ]
-        }).populate('userId', 'username name email role');
+        };
+
+        // For seniors searching other seniors, filter by same college
+        if (currentUser.role === 'senior') {
+            const currentUserProfile = await Profile.findOne({ userId: currentUserId });
+            if (currentUserProfile && currentUserProfile.collegeName) {
+                profileSearchCriteria.collegeName = currentUserProfile.collegeName;
+            }
+        }
+
+        const profiles = await Profile.find(profileSearchCriteria).populate('userId', 'username name email role');
 
         // Combine user and profile data, ensuring no duplicates and proper structure
         const combinedResults = {};
@@ -68,24 +90,24 @@ const searchProfiles = async (req, res) => {
         const finalResults = await Promise.all(Object.values(combinedResults).map(async (result) => {
             const connectionStatus = await ConnectionRequest.findOne({
                 $or: [
-                    { senderId: currentUserProfileId, receiverId: result.id },
-                    { senderId: result.id, receiverId: currentUserProfileId }
+                    { senderId: currentUserId, receiverId: result.id },
+                    { senderId: result.id, receiverId: currentUserId }
                 ],
                 status: 'pending'
             });
+            
             const isConnected = await Profile.findOne({
-                userId: currentUserProfileId,
+                userId: currentUserId,
                 connections: result.id
             });
 
             return {
                 ...result,
-                requestSent: !!connectionStatus && connectionStatus.senderId.toString() === currentUserProfileId,
-                requestReceived: !!connectionStatus && connectionStatus.receiverId.toString() === currentUserProfileId,
+                requestSent: !!connectionStatus && connectionStatus.senderId.toString() === currentUserId,
+                requestReceived: !!connectionStatus && connectionStatus.receiverId.toString() === currentUserId,
                 isConnected: !!isConnected
             };
         }));
-
 
         res.status(200).json(finalResults);
     } catch (error) {
