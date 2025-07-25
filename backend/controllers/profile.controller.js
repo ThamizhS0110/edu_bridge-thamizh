@@ -1,8 +1,23 @@
-const Profile = require('../models/Profile');
 const User = require('../models/User');
-const uploadToCloudinary = require('../utils/cloudinary');
+const multer = require('multer');
 
-// Get user profile (either own or another user's) - NEW FUNCTION
+// Configure multer for image uploads (store in memory)
+const storage = multer.memoryStorage();
+const upload = multer({ 
+    storage: storage,
+    limits: {
+        fileSize: 5 * 1024 * 1024 // 5MB limit
+    },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only image files are allowed'), false);
+        }
+    }
+});
+
+// Get user profile (either own or another user's)
 const getUserProfile = async (req, res) => {
     try {
         let userId;
@@ -19,91 +34,100 @@ const getUserProfile = async (req, res) => {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        const profile = await Profile.findOne({ userId: user._id }).populate('userId', 'username name email role');
-        if (!profile) {
-            return res.status(404).json({ message: 'Profile not found' });
+        // Convert image buffer to base64 for frontend display
+        let profileImage = null;
+        if (user.image && user.image.data) {
+            profileImage = `data:${user.image.contentType};base64,${user.image.data.toString('base64')}`;
         }
 
-        res.status(200).json(profile);
+        const userProfile = {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            student: user.student,
+            college: user.college,
+            degree: user.degree,
+            fieldOfStudy: user.fieldOfStudy,
+            school: user.school,
+            grade: user.grade,
+            goals: user.goals,
+            interests: user.interests,
+            bio: user.bio,
+            location: user.location,
+            preferences: user.preferences,
+            connections: user.connections,
+            isVerified: user.isVerified,
+            isActive: user.isActive,
+            profileImage: profileImage,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt
+        };
+
+        res.status(200).json(userProfile);
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server error fetching profile' });
     }
 };
 
-// Update my profile - NEW FUNCTION
+// Update my profile
 const updateMyProfile = async (req, res) => {
     try {
-        const userId = req.user.id; // Get user ID from authenticated token
-        const { bio, schoolName, collegeName, department, interestedDomains, achievements } = req.body;
+        const userId = req.user.id;
+        const updateData = req.body;
 
-        const profile = await Profile.findOne({ userId });
-        if (!profile) {
-            return res.status(404).json({ message: 'Profile not found' });
-        }
+        // Remove sensitive fields that shouldn't be updated via this endpoint
+        delete updateData.password;
+        delete updateData.email;
+        delete updateData._id;
+        delete updateData.connections;
+        delete updateData.isVerified;
+        delete updateData.createdAt;
+        delete updateData.updatedAt;
 
-        // Update fields if provided
-        if (bio !== undefined) profile.bio = bio;
-        if (schoolName !== undefined) profile.schoolName = schoolName;
-        if (collegeName !== undefined) profile.collegeName = collegeName;
-        if (department !== undefined) profile.department = department;
-        if (interestedDomains !== undefined) profile.interestedDomains = interestedDomains;
-        if (achievements !== undefined) profile.achievements = achievements;
+        const user = await User.findByIdAndUpdate(
+            userId, 
+            updateData, 
+            { new: true, runValidators: true }
+        ).select('-password');
 
-        await profile.save();
-        
-        // Populate the profile with user data before returning
-        const updatedProfile = await Profile.findOne({ userId }).populate('userId', 'username name email role');
-        res.status(200).json({ message: 'Profile updated successfully', profile: updatedProfile });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Server error updating profile' });
-    }
-};
-
-// Get user profile (either own or another user's)
-const getProfile = async (req, res) => {
-    try {
-        const userId = req.params.userId === 'my-profile' ? req.user.id : req.params.userId;
-
-        const user = await User.findById(userId).select('-password');
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        const profile = await Profile.findOne({ userId: user._id }).populate('userId', 'username name email role');
-        if (!profile) {
-            return res.status(404).json({ message: 'Profile not found' });
+        // Convert image buffer to base64 for frontend display
+        let profileImage = null;
+        if (user.image && user.image.data) {
+            profileImage = `data:${user.image.contentType};base64,${user.image.data.toString('base64')}`;
         }
 
-        res.status(200).json(profile);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Server error fetching profile' });
-    }
-};
+        const userProfile = {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            student: user.student,
+            college: user.college,
+            degree: user.degree,
+            fieldOfStudy: user.fieldOfStudy,
+            school: user.school,
+            grade: user.grade,
+            goals: user.goals,
+            interests: user.interests,
+            bio: user.bio,
+            location: user.location,
+            preferences: user.preferences,
+            connections: user.connections,
+            isVerified: user.isVerified,
+            isActive: user.isActive,
+            profileImage: profileImage,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt
+        };
 
-// Update user profile
-const updateProfile = async (req, res) => {
-    try {
-        const userId = req.user.id; // Get user ID from authenticated token
-        const { bio, schoolName, collegeName, department, interestedDomains, achievements } = req.body;
-
-        const profile = await Profile.findOne({ userId });
-        if (!profile) {
-            return res.status(404).json({ message: 'Profile not found' });
-        }
-
-        // Update fields if provided
-        if (bio !== undefined) profile.bio = bio;
-        if (schoolName !== undefined) profile.schoolName = schoolName;
-        if (collegeName !== undefined) profile.collegeName = collegeName;
-        if (department !== undefined) profile.department = department;
-        if (interestedDomains !== undefined) profile.interestedDomains = interestedDomains;
-        if (achievements !== undefined) profile.achievements = achievements;
-
-        await profile.save();
-        res.status(200).json({ message: 'Profile updated successfully', profile });
+        res.status(200).json({ 
+            message: 'Profile updated successfully', 
+            user: userProfile 
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server error updating profile' });
@@ -114,30 +138,57 @@ const updateProfile = async (req, res) => {
 const updateProfilePicture = async (req, res) => {
     try {
         const userId = req.user.id;
+        
         if (!req.file) {
             return res.status(400).json({ message: 'No file uploaded' });
         }
 
-        const imageUrl = await uploadToCloudinary(req.file.path);
-        if (!imageUrl) {
-            return res.status(500).json({ message: 'Failed to upload image to Cloudinary' });
-        }
-
-        const profile = await Profile.findOneAndUpdate(
-            { userId },
-            { profilePictureUrl: imageUrl },
+        // Update user with image data
+        const user = await User.findByIdAndUpdate(
+            userId,
+            {
+                image: {
+                    data: req.file.buffer,
+                    contentType: req.file.mimetype
+                }
+            },
             { new: true }
-        );
+        ).select('-password');
 
-        if (!profile) {
-            return res.status(404).json({ message: 'Profile not found' });
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
         }
 
-        res.status(200).json({ message: 'Profile picture updated successfully', profilePictureUrl: imageUrl });
+        // Convert image buffer to base64 for frontend display
+        const profileImage = `data:${user.image.contentType};base64,${user.image.data.toString('base64')}`;
+
+        res.status(200).json({ 
+            message: 'Profile picture updated successfully', 
+            profileImage: profileImage 
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server error updating profile picture' });
     }
 };
 
-module.exports = { getUserProfile, updateMyProfile, getProfile, updateProfile, updateProfilePicture };
+// Legacy function for backward compatibility
+const getProfile = async (req, res) => {
+    // Redirect to getUserProfile
+    return getUserProfile(req, res);
+};
+
+// Legacy function for backward compatibility  
+const updateProfile = async (req, res) => {
+    // Redirect to updateMyProfile
+    return updateMyProfile(req, res);
+};
+
+module.exports = { 
+    getUserProfile, 
+    updateMyProfile, 
+    getProfile, 
+    updateProfile, 
+    updateProfilePicture,
+    upload
+};

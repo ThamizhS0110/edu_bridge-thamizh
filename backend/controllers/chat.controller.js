@@ -1,15 +1,32 @@
 const Chat = require('../models/Chat');
 const User = require('../models/User');
-const Profile = require('../models/Profile'); // To check if users are connected
 
 // Get user's chats
 const getMyChats = async (req, res) => {
     try {
         const chats = await Chat.find({ participants: req.user.id })
-            .populate('participants', 'username name profilePictureUrl')
+            .populate('participants', 'name student college school')
             .sort({ lastMessageAt: -1 });
 
-        res.status(200).json(chats);
+        // Convert any images to base64 for display
+        const processedChats = chats.map(chat => {
+            const processedParticipants = chat.participants.map(participant => {
+                let profileImage = null;
+                if (participant.image && participant.image.data) {
+                    profileImage = `data:${participant.image.contentType};base64,${participant.image.data.toString('base64')}`;
+                }
+                return {
+                    ...participant.toObject(),
+                    profileImage
+                };
+            });
+            return {
+                ...chat.toObject(),
+                participants: processedParticipants
+            };
+        });
+
+        res.status(200).json(processedChats);
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server error fetching chats' });
@@ -20,7 +37,7 @@ const getMyChats = async (req, res) => {
 const getChatMessages = async (req, res) => {
     try {
         const chatId = req.params.chatId;
-        const chat = await Chat.findById(chatId).populate('messages.sender', 'username name');
+        const chat = await Chat.findById(chatId).populate('messages.sender', 'name student');
 
         if (!chat) {
             return res.status(404).json({ message: 'Chat not found' });
@@ -51,32 +68,22 @@ const sendMessage = async (req, res) => {
         if (!chat) {
             return res.status(404).json({ message: 'Chat not found' });
         }
+
         if (!chat.participants.includes(senderId)) {
-            return res.status(403).json({ message: 'Unauthorized to send message in this chat' });
+            return res.status(403).json({ message: 'Unauthorized to send messages in this chat' });
         }
 
-        // Check if a default message exists and this is the first real message from sender
-        if (chat.messages.length === 1 && chat.messages[0].sender.toString() !== senderId) {
+        // Check if users are connected (only after first auto-message)
+        if (chat.messages.length > 0) {
             const recipientId = chat.participants.find(p => p.toString() !== senderId.toString());
-            const senderProfile = await Profile.findOne({ userId: senderId });
-            const recipientProfile = await Profile.findOne({ userId: recipientId });
+            const senderUser = await User.findById(senderId);
+            const recipientUser = await User.findById(recipientId);
 
             // Ensure sender and receiver are connected before allowing further messages
-            if (!senderProfile.connections.includes(recipientId) || !recipientProfile.connections.includes(senderId)) {
-                return res.status(403).json({ message: 'You can only send messages after the connection request is accepted.' });
-            }
-        } else if (chat.messages.length === 0) {
-             // This case should ideally not happen if chat is initiated with a default message,
-             // but as a fallback, ensure connection for first message too.
-            const recipientId = chat.participants.find(p => p.toString() !== senderId.toString());
-            const senderProfile = await Profile.findOne({ userId: senderId });
-            const recipientProfile = await Profile.findOne({ userId: recipientId });
-
-            if (!senderProfile.connections.includes(recipientId) || !recipientProfile.connections.includes(senderId)) {
+            if (!senderUser.connections.includes(recipientId) || !recipientUser.connections.includes(senderId)) {
                 return res.status(403).json({ message: 'You can only send messages after the connection request is accepted.' });
             }
         }
-
 
         const newMessage = {
             sender: senderId,
@@ -89,13 +96,16 @@ const sendMessage = async (req, res) => {
         await chat.save();
 
         // Emit message via Socket.IO
-        req.app.get('socketio').to(chatId).emit('receiveMessage', {
-            chatId,
-            message: {
-                ...newMessage,
-                sender: { _id: senderId, username: req.user.username, name: req.user.name } // Send sender info
-            }
-        });
+        const io = req.app.get('socketio');
+        if (io) {
+            io.to(chatId).emit('receiveMessage', {
+                chatId,
+                message: {
+                    ...newMessage,
+                    sender: { _id: senderId, name: req.user.name } // Send sender info
+                }
+            });
+        }
 
         res.status(201).json({ message: 'Message sent', chat: newMessage });
     } catch (error) {
@@ -104,7 +114,7 @@ const sendMessage = async (req, res) => {
     }
 };
 
-// Start a chat (after connection accepted)
+// Start a chat (auto-create if not found)
 const startChat = async (req, res) => {
     const { participantId } = req.body;
     const currentUserId = req.user.id;
@@ -114,13 +124,17 @@ const startChat = async (req, res) => {
     }
 
     try {
-        // Check if users are connected
-        const currentUserProfile = await Profile.findOne({ userId: currentUserId });
-        const participantProfile = await Profile.findOne({ userId: participantId });
+        // Get user information
+        const currentUser = await User.findById(currentUserId);
+        const participantUser = await User.findById(participantId);
 
-        if (!currentUserProfile || !participantProfile ||
-            !currentUserProfile.connections.includes(participantId) ||
-            !participantProfile.connections.includes(currentUserId)) {
+        if (!participantUser) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Check if users are connected
+        if (!currentUser.connections.includes(participantId) || 
+            !participantUser.connections.includes(currentUserId)) {
             return res.status(403).json({ message: 'You can only start a chat with connected users.' });
         }
 
@@ -134,10 +148,15 @@ const startChat = async (req, res) => {
             return res.status(200).json({ message: 'Chat already exists', chat });
         }
 
-        // Create new chat
+        // Create new chat with welcome message
         chat = new Chat({
             participants: [currentUserId, participantId],
-            messages: []
+            messages: [{
+                sender: currentUserId,
+                content: `Hi, I'm ${currentUser.name}. Great to connect with you on EduBridge!`,
+                timestamp: new Date()
+            }],
+            lastMessageAt: new Date()
         });
 
         await chat.save();
@@ -148,5 +167,42 @@ const startChat = async (req, res) => {
     }
 };
 
+// Auto-create chat for messaging (helper function)
+const getOrCreateChat = async (req, res) => {
+    const { participantId } = req.body;
+    const currentUserId = req.user.id;
 
-module.exports = { getMyChats, getChatMessages, sendMessage, startChat };
+    try {
+        // Check if chat exists
+        let chat = await Chat.findOne({
+            participants: { $all: [currentUserId, participantId] },
+            'participants.2': { $exists: false }
+        });
+
+        if (!chat) {
+            // Auto-create chat if users are connected
+            const currentUser = await User.findById(currentUserId);
+            const participantUser = await User.findById(participantId);
+
+            if (currentUser.connections.includes(participantId) && 
+                participantUser.connections.includes(currentUserId)) {
+                
+                chat = new Chat({
+                    participants: [currentUserId, participantId],
+                    messages: [],
+                    lastMessageAt: new Date()
+                });
+                await chat.save();
+            } else {
+                return res.status(403).json({ message: 'Cannot create chat with non-connected users' });
+            }
+        }
+
+        res.status(200).json({ chat });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error getting or creating chat' });
+    }
+};
+
+module.exports = { getMyChats, getChatMessages, sendMessage, startChat, getOrCreateChat };

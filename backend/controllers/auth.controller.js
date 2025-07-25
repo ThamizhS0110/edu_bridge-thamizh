@@ -1,21 +1,32 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const Profile = require('../models/Profile');
 
 // Register a new user
 const registerUser = async (req, res) => {
-    const { username, name, email, password, role } = req.body;
+    const { 
+        name, 
+        email, 
+        password, 
+        student, 
+        college, 
+        degree, 
+        fieldOfStudy, 
+        school, 
+        grade, 
+        goals, 
+        interests, 
+        bio, 
+        location 
+    } = req.body;
 
     try {
         // Check if user already exists
-        const userExists = await User.findOne({ 
-            $or: [{ email }, { username }] 
-        });
+        const userExists = await User.findOne({ email });
 
         if (userExists) {
             return res.status(400).json({ 
-                message: 'User with this email or username already exists' 
+                message: 'User with this email already exists' 
             });
         }
 
@@ -23,30 +34,51 @@ const registerUser = async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        // Create user
-        const user = await User.create({
-            username,
+        // Create user data object
+        const userData = {
             name,
             email,
             password: hashedPassword,
-            role
-        });
+            student,
+            bio: bio || '',
+            location: location || '',
+            goals: goals || [],
+            interests: interests || [],
+            connections: [],
+            preferences: {
+                notifications: {
+                    email: true,
+                    push: true,
+                    connectionRequests: true
+                },
+                privacy: {
+                    profileVisibility: 'public',
+                    showEmail: false
+                }
+            }
+        };
 
-        // Create associated profile
-        await Profile.create({
-            userId: user._id,
-            bio: '',
-            schoolName: '',
-            collegeName: '',
-            department: '',
-            interestedDomains: [],
-            achievements: [],
-            connections: []
-        });
+        // Add student-specific fields
+        if (student === 'college') {
+            userData.college = college || '';
+            userData.degree = degree || '';
+            userData.fieldOfStudy = fieldOfStudy || '';
+        } else if (student === 'school') {
+            userData.school = school || '';
+            userData.grade = grade || '';
+        }
+
+        // Create user
+        const user = await User.create(userData);
 
         // Generate JWT token
         const token = jwt.sign(
-            { id: user._id, role: user.role, username: user.username, name: user.name },
+            { 
+                id: user._id, 
+                student: user.student, 
+                name: user.name,
+                email: user.email 
+            },
             process.env.JWT_SECRET,
             { expiresIn: '30d' }
         );
@@ -56,10 +88,14 @@ const registerUser = async (req, res) => {
             token,
             user: {
                 id: user._id,
-                username: user.username,
                 name: user.name,
                 email: user.email,
-                role: user.role
+                student: user.student,
+                college: user.college,
+                school: user.school,
+                degree: user.degree,
+                fieldOfStudy: user.fieldOfStudy,
+                grade: user.grade
             }
         });
     } catch (error) {
@@ -87,7 +123,12 @@ const loginUser = async (req, res) => {
 
         // Generate JWT token
         const token = jwt.sign(
-            { id: user._id, role: user.role, username: user.username, name: user.name },
+            { 
+                id: user._id, 
+                student: user.student, 
+                name: user.name,
+                email: user.email 
+            },
             process.env.JWT_SECRET,
             { expiresIn: '30d' }
         );
@@ -97,10 +138,14 @@ const loginUser = async (req, res) => {
             token,
             user: {
                 id: user._id,
-                username: user.username,
                 name: user.name,
                 email: user.email,
-                role: user.role
+                student: user.student,
+                college: user.college,
+                school: user.school,
+                degree: user.degree,
+                fieldOfStudy: user.fieldOfStudy,
+                grade: user.grade
             }
         });
     } catch (error) {
