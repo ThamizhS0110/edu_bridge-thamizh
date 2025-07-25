@@ -68,7 +68,7 @@ const ConnectionRequestCard = ({ request, isSender = false, onAccept, onReject }
                     <strong><Link to={`/profile/${userToDisplay._id}`}>{userToDisplay.name || 'Unknown User'}</Link></strong>
                 </p>
                 <span>Status: {request.status}</span>
-                {request.defaultMessage && <p>"{request.defaultMessage}"</p>}
+                {(request.message || request.defaultMessage) && <p>"{request.message || request.defaultMessage}"</p>}
             </RequestInfo>
             <Actions>
                 {!isSender && request.status === 'pending' && (

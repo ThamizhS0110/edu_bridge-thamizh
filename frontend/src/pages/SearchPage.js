@@ -118,7 +118,10 @@ const SearchPage = () => {
 
     const handleSendRequest = async (receiverId) => {
         try {
-            await api.post('/connections/request', { receiverId });
+            await api.post('/connections/request', { 
+                receiverId,
+                message: `Hi, I'm ${user.name}, I need to chat with you`
+            });
             toast.success('Connection request sent!');
             
             // Update both search results and default users

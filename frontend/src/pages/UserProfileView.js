@@ -180,7 +180,10 @@ const UserProfileView = () => {
 
     const handleSendRequest = async () => {
         try {
-            await api.post('/connections/request', { receiverId: userId });
+            await api.post('/connections/request', { 
+                receiverId: userId,
+                message: `Hi, I'm ${user.name}, I need to chat with you`
+            });
             toast.success('Connection request sent!');
             setConnectionStatus(prev => ({ ...prev, requestSent: true }));
         } catch (error) {
