@@ -77,18 +77,6 @@ const SearchPage = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
 
-    // Check if user has access (only juniors can search for seniors)
-    if (user && user.student !== 'junior') {
-        return (
-            <SearchContainer>
-                <AccessDenied>
-                    <h2>Access Restricted</h2>
-                    <p>Only junior students can access the search feature to find senior mentors.</p>
-                </AccessDenied>
-            </SearchContainer>
-        );
-    }
-
     // Load default users on component mount
     useEffect(() => {
         const loadDefaultUsers = async () => {
@@ -160,6 +148,18 @@ const SearchPage = () => {
             toast.error(error.response?.data?.message || 'Failed to start chat.');
         }
     };
+
+    // Check if user has access (only juniors can search for seniors)
+    if (user && user.student !== 'junior') {
+        return (
+            <SearchContainer>
+                <AccessDenied>
+                    <h2>Access Restricted</h2>
+                    <p>Only junior students can access the search feature to find senior mentors.</p>
+                </AccessDenied>
+            </SearchContainer>
+        );
+    }
 
     const displayResults = searchQuery.trim() ? searchResults : defaultUsers;
     const isShowingDefaults = !searchQuery.trim();
