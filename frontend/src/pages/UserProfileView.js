@@ -180,7 +180,10 @@ const UserProfileView = () => {
 
     const handleSendRequest = async () => {
         try {
-            await api.post('/connections/request', { receiverId: userId });
+            await api.post('/connections/request', { 
+                receiverId: userId,
+                message: `Hi, I'm ${user.name}, I need to chat with you`
+            });
             toast.success('Connection request sent!');
             setConnectionStatus(prev => ({ ...prev, requestSent: true }));
         } catch (error) {
@@ -235,9 +238,9 @@ const UserProfileView = () => {
         );
     }
 
-    // Check if current user can send request (school students to college students)
-    const canSendRequest = user?.student === 'school' && 
-                          profile.student === 'college' && 
+    // Check if current user can send request (junior students to senior students)
+    const canSendRequest = user?.student === 'junior' && 
+                          profile.student === 'senior' && 
                           !connectionStatus.isAlreadyConnected && 
                           !connectionStatus.requestSent && 
                           !connectionStatus.requestReceived;
@@ -254,7 +257,7 @@ const UserProfileView = () => {
                 />
                 <ProfileName>{profile.name}</ProfileName>
                 <ProfileStudent>
-                    {profile.student === 'college' ? 'College Student' : 'School Student'}
+                    {profile.student === 'senior' ? 'Senior Student' : 'Junior Student'}
                 </ProfileStudent>
             </ProfileHeader>
 
@@ -270,18 +273,18 @@ const UserProfileView = () => {
                 {/* Education Section */}
                 <InfoSection>
                     <SectionTitle>Education</SectionTitle>
-                    {profile.student === 'college' ? (
-                        <>
-                            <FieldValue><strong>College:</strong> {profile.college || 'Not specified'}</FieldValue>
-                            <FieldValue><strong>Degree:</strong> {profile.degree || 'Not specified'}</FieldValue>
-                            <FieldValue><strong>Field of Study:</strong> {profile.fieldOfStudy || 'Not specified'}</FieldValue>
-                        </>
-                    ) : (
-                        <>
-                            <FieldValue><strong>School:</strong> {profile.school || 'Not specified'}</FieldValue>
-                            <FieldValue><strong>Grade:</strong> {profile.grade || 'Not specified'}</FieldValue>
-                        </>
-                    )}
+                                    {profile.student === 'senior' ? (
+                    <>
+                        <FieldValue><strong>College:</strong> {profile.college || 'Not specified'}</FieldValue>
+                        <FieldValue><strong>Degree:</strong> {profile.degree || 'Not specified'}</FieldValue>
+                        <FieldValue><strong>Field of Study:</strong> {profile.fieldOfStudy || 'Not specified'}</FieldValue>
+                    </>
+                ) : (
+                    <>
+                        <FieldValue><strong>School:</strong> {profile.school || 'Not specified'}</FieldValue>
+                        <FieldValue><strong>Grade:</strong> {profile.grade || 'Not specified'}</FieldValue>
+                    </>
+                )}
                 </InfoSection>
 
                 {/* Interests Section */}

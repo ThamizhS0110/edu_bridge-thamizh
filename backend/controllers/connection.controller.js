@@ -4,7 +4,7 @@ const Chat = require('../models/Chat');
 
 // Send a connection request
 const sendConnectionRequest = async (req, res) => {
-    const { receiverId } = req.body;
+    const { receiverId, message } = req.body;
     const senderId = req.user.id;
 
     if (senderId === receiverId) {
@@ -19,10 +19,10 @@ const sendConnectionRequest = async (req, res) => {
             return res.status(404).json({ message: 'Receiver user not found' });
         }
         
-        // Role-based request validation - only school students can send to college students
-        if (senderUser.student !== 'school' || receiverUser.student !== 'college') {
+        // Role-based request validation - only junior students can send to senior students
+        if (senderUser.student !== 'junior' || receiverUser.student !== 'senior') {
             return res.status(403).json({ 
-                message: 'Only school students can send connection requests to college students' 
+                message: 'Only junior students can send connection requests to senior students' 
             });
         }
 
@@ -45,7 +45,8 @@ const sendConnectionRequest = async (req, res) => {
         const newRequest = new ConnectionRequest({
             senderId,
             receiverId,
-            defaultMessage: `Hi, I'm ${senderUser.name}. I'd like to connect with you on EduBridge!`
+            message: message || '', // Custom message from user
+            defaultMessage: `Hi, I'm ${senderUser.name}, I need to chat with you`
         });
         await newRequest.save();
 
@@ -101,12 +102,14 @@ const acceptConnectionRequest = async (req, res) => {
         const senderUser = await User.findById(request.senderId);
         const receiverUser = await User.findById(request.receiverId);
 
-        // Create a new chat between the connected users
+        // Create a new chat between the connected users with the original request message
+        const initialMessage = request.message || request.defaultMessage || `Hi, I'm ${senderUser.name}, I need to chat with you`;
+        
         const newChat = new Chat({
             participants: [request.senderId, request.receiverId],
             messages: [{
                 sender: request.senderId,
-                content: `Hi, I'm ${senderUser.name}, I'd like to connect with you on EduBridge!`,
+                content: initialMessage,
                 timestamp: new Date()
             }],
             lastMessageAt: new Date()

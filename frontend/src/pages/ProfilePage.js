@@ -236,7 +236,7 @@ const ProfilePage = () => {
                 setTempBio(res.data.bio || '');
                 
                 // Set education fields based on student type
-                if (res.data.student === 'college') {
+                if (res.data.student === 'senior') {
                     setTempEducation({
                         college: res.data.college || '',
                         degree: res.data.degree || '',
@@ -259,7 +259,7 @@ const ProfilePage = () => {
     }, [user]);
 
     const fetchSentRequests = useCallback(async () => {
-        if (user && user.student === 'school') {
+        if (user && user.student === 'junior') {
             try {
                 const res = await api.get('/connections/requests/sent');
                 setSentRequests(res.data);
@@ -270,7 +270,7 @@ const ProfilePage = () => {
     }, [user]);
 
     const fetchReceivedRequests = useCallback(async () => {
-        if (user && user.student === 'college') {
+        if (user && user.student === 'senior') {
             try {
                 const res = await api.get('/connections/requests/received');
                 setReceivedRequests(res.data);
@@ -334,7 +334,7 @@ const ProfilePage = () => {
         }
     };
 
-    const handleImageUpload = async (e) => {
+    const handleImageUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
@@ -352,22 +352,23 @@ const ProfilePage = () => {
 
         setUploading(true);
         
-        try {
-            const formData = new FormData();
-            formData.append('profilePicture', file);
-
-            const res = await api.put('/users/me/picture', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-            });
-            
-            setProfile(prev => ({ ...prev, profileImage: res.data.profileImage }));
-            toast.success('Profile picture updated successfully!');
-        } catch (error) {
-            console.error('Error uploading image:', error);
-            toast.error('Failed to upload image.');
-        } finally {
-            setUploading(false);
-        }
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+            try {
+                const res = await api.put('/users/me', {
+                    image: reader.result, // base64 encoded image
+                });
+                
+                setProfile(prev => ({ ...prev, profileImage: reader.result }));
+                toast.success('Profile picture updated successfully!');
+            } catch (error) {
+                console.error('Error uploading image:', error);
+                toast.error('Failed to upload image.');
+            } finally {
+                setUploading(false);
+            }
+        };
+        reader.readAsDataURL(file);
     };
 
     const addInterest = () => {
@@ -424,7 +425,7 @@ const ProfilePage = () => {
                 </ProfilePictureContainer>
                 <ProfileName>{profile.name}</ProfileName>
                 <ProfileStudent>
-                    {profile.student === 'college' ? 'College Student' : 'School Student'}
+                    {profile.student === 'senior' ? 'Senior Student' : 'Junior Student'}
                 </ProfileStudent>
             </ProfileHeader>
 
@@ -435,7 +436,7 @@ const ProfilePage = () => {
                 >
                     Profile
                 </TabButton>
-                {user.student === 'school' && (
+                {user.student === 'junior' && (
                     <TabButton 
                         active={activeTab === 'sent'} 
                         onClick={() => setActiveTab('sent')}
@@ -443,7 +444,7 @@ const ProfilePage = () => {
                         <FaPaperPlane /> Sent Requests
                     </TabButton>
                 )}
-                {user.student === 'college' && (
+                {user.student === 'senior' && (
                     <TabButton 
                         active={activeTab === 'received'} 
                         onClick={() => setActiveTab('received')}
@@ -455,44 +456,64 @@ const ProfilePage = () => {
 
             {activeTab === 'profile' && (
                 <ProfileInfo>
-                    {/* Bio Section */}
+                    {/* Personal Info Section */}
                     <InfoSection>
                         <SectionTitle>
-                            Bio
+                            Personal Information
                             <Button onClick={() => setIsEditingBio(!isEditingBio)}>
                                 {isEditingBio ? <FaTimes /> : <FaEdit />}
                             </Button>
                         </SectionTitle>
                         {isEditingBio ? (
-                            <EditableField>
-                                <textarea
-                                    value={tempBio}
-                                    onChange={(e) => setTempBio(e.target.value)}
-                                    placeholder="Tell us about yourself..."
-                                    rows={4}
-                                    style={{ width: '100%', padding: '10px', borderRadius: '5px' }}
-                                />
+                            <div>
+                                <EditableField>
+                                    <Label>Name</Label>
+                                    <FieldValue>{profile.name}</FieldValue>
+                                </EditableField>
+                                <EditableField>
+                                    <Label>Email</Label>
+                                    <FieldValue>{profile.email}</FieldValue>
+                                </EditableField>
+                                <EditableField>
+                                    <Label>Role</Label>
+                                    <FieldValue>{profile.student === 'senior' ? 'Senior Student' : 'Junior Student'}</FieldValue>
+                                </EditableField>
+                                <EditableField>
+                                    <Label>Bio</Label>
+                                    <textarea
+                                        value={tempBio}
+                                        onChange={(e) => setTempBio(e.target.value)}
+                                        placeholder="Tell us about yourself..."
+                                        rows={4}
+                                        style={{ width: '100%', padding: '10px', borderRadius: '5px' }}
+                                    />
+                                </EditableField>
                                 <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
                                     <Button onClick={handleBioSave}><FaCheck /> Save</Button>
                                     <Button onClick={() => setIsEditingBio(false)}><FaTimes /> Cancel</Button>
                                 </div>
-                            </EditableField>
+                            </div>
                         ) : (
-                            <FieldValue>{profile.bio || 'No bio added yet.'}</FieldValue>
+                            <div>
+                                <FieldValue><strong>Name:</strong> {profile.name}</FieldValue>
+                                <FieldValue><strong>Email:</strong> {profile.email}</FieldValue>
+                                <FieldValue><strong>Role:</strong> {profile.student === 'senior' ? 'Senior Student' : 'Junior Student'}</FieldValue>
+                                <FieldValue><strong>Bio:</strong> {profile.bio || 'No bio added yet.'}</FieldValue>
+                            </div>
                         )}
                     </InfoSection>
 
-                    {/* Education Section */}
+                    {/* Educational Details Section */}
                     <InfoSection>
                         <SectionTitle>
-                            Education
+                            Educational Details
                             <Button onClick={() => setIsEditingEducation(!isEditingEducation)}>
                                 {isEditingEducation ? <FaTimes /> : <FaEdit />}
                             </Button>
                         </SectionTitle>
                         {isEditingEducation ? (
                             <div>
-                                {profile.student === 'college' ? (
+                                {profile.student === 'senior' ? (
                                     <>
                                         <EditableField>
                                             <Label>College</Label>
@@ -539,14 +560,67 @@ const ProfilePage = () => {
                                         </EditableField>
                                     </>
                                 )}
+                                
+                                {/* Interests */}
+                                <EditableField>
+                                    <Label>Interests</Label>
+                                    <TagContainer>
+                                        {tempInterests.map((interest, index) => (
+                                            <Tag key={index}>
+                                                {interest}
+                                                <span className="remove-tag" onClick={() => removeInterest(index)}>
+                                                    <FaTimes />
+                                                </span>
+                                            </Tag>
+                                        ))}
+                                    </TagContainer>
+                                    <TagInputWrapper>
+                                        <AddTagInput
+                                            value={newInterest}
+                                            onChange={(e) => setNewInterest(e.target.value)}
+                                            placeholder="Add an interest..."
+                                            onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addInterest())}
+                                        />
+                                        <Button onClick={addInterest}>Add</Button>
+                                    </TagInputWrapper>
+                                </EditableField>
+
+                                {/* Goals */}
+                                <EditableField>
+                                    <Label>Goals</Label>
+                                    <TagContainer>
+                                        {tempGoals.map((goal, index) => (
+                                            <Tag key={index}>
+                                                {goal}
+                                                <span className="remove-tag" onClick={() => removeGoal(index)}>
+                                                    <FaTimes />
+                                                </span>
+                                            </Tag>
+                                        ))}
+                                    </TagContainer>
+                                    <TagInputWrapper>
+                                        <AddTagInput
+                                            value={newGoal}
+                                            onChange={(e) => setNewGoal(e.target.value)}
+                                            placeholder="Add a goal..."
+                                            onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addGoal())}
+                                        />
+                                        <Button onClick={addGoal}>Add</Button>
+                                    </TagInputWrapper>
+                                </EditableField>
+
                                 <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
-                                    <Button onClick={handleEducationSave}><FaCheck /> Save</Button>
+                                    <Button onClick={() => {
+                                        handleEducationSave();
+                                        handleInterestsSave();
+                                        handleGoalsSave();
+                                    }}><FaCheck /> Save All</Button>
                                     <Button onClick={() => setIsEditingEducation(false)}><FaTimes /> Cancel</Button>
                                 </div>
                             </div>
                         ) : (
                             <div>
-                                {profile.student === 'college' ? (
+                                {profile.student === 'senior' ? (
                                     <>
                                         <FieldValue><strong>College:</strong> {profile.college || 'Not specified'}</FieldValue>
                                         <FieldValue><strong>Degree:</strong> {profile.degree || 'Not specified'}</FieldValue>
@@ -558,99 +632,27 @@ const ProfilePage = () => {
                                         <FieldValue><strong>Grade:</strong> {profile.grade || 'Not specified'}</FieldValue>
                                     </>
                                 )}
-                            </div>
-                        )}
-                    </InfoSection>
-
-                    {/* Interests Section */}
-                    <InfoSection>
-                        <SectionTitle>
-                            Interests
-                            <Button onClick={() => setIsEditingInterests(!isEditingInterests)}>
-                                {isEditingInterests ? <FaTimes /> : <FaEdit />}
-                            </Button>
-                        </SectionTitle>
-                        {isEditingInterests ? (
-                            <div>
+                                
+                                <FieldValue><strong>Interests:</strong></FieldValue>
                                 <TagContainer>
-                                    {tempInterests.map((interest, index) => (
-                                        <Tag key={index}>
-                                            {interest}
-                                            <span className="remove-tag" onClick={() => removeInterest(index)}>
-                                                <FaTimes />
-                                            </span>
-                                        </Tag>
-                                    ))}
+                                    {profile.interests && profile.interests.length > 0 ? 
+                                        profile.interests.map((interest, index) => (
+                                            <Tag key={index}>{interest}</Tag>
+                                        )) : 
+                                        <FieldValue>No interests added yet.</FieldValue>
+                                    }
                                 </TagContainer>
-                                <TagInputWrapper>
-                                    <AddTagInput
-                                        value={newInterest}
-                                        onChange={(e) => setNewInterest(e.target.value)}
-                                        placeholder="Add an interest..."
-                                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addInterest())}
-                                    />
-                                    <Button onClick={addInterest}>Add</Button>
-                                </TagInputWrapper>
-                                <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
-                                    <Button onClick={handleInterestsSave}><FaCheck /> Save</Button>
-                                    <Button onClick={() => setIsEditingInterests(false)}><FaTimes /> Cancel</Button>
-                                </div>
-                            </div>
-                        ) : (
-                            <TagContainer>
-                                {profile.interests && profile.interests.length > 0 ? 
-                                    profile.interests.map((interest, index) => (
-                                        <Tag key={index}>{interest}</Tag>
-                                    )) : 
-                                    <FieldValue>No interests added yet.</FieldValue>
-                                }
-                            </TagContainer>
-                        )}
-                    </InfoSection>
-
-                    {/* Goals Section */}
-                    <InfoSection>
-                        <SectionTitle>
-                            Goals
-                            <Button onClick={() => setIsEditingGoals(!isEditingGoals)}>
-                                {isEditingGoals ? <FaTimes /> : <FaEdit />}
-                            </Button>
-                        </SectionTitle>
-                        {isEditingGoals ? (
-                            <div>
+                                
+                                <FieldValue><strong>Goals:</strong></FieldValue>
                                 <TagContainer>
-                                    {tempGoals.map((goal, index) => (
-                                        <Tag key={index}>
-                                            {goal}
-                                            <span className="remove-tag" onClick={() => removeGoal(index)}>
-                                                <FaTimes />
-                                            </span>
-                                        </Tag>
-                                    ))}
+                                    {profile.goals && profile.goals.length > 0 ? 
+                                        profile.goals.map((goal, index) => (
+                                            <Tag key={index}>{goal}</Tag>
+                                        )) : 
+                                        <FieldValue>No goals added yet.</FieldValue>
+                                    }
                                 </TagContainer>
-                                <TagInputWrapper>
-                                    <AddTagInput
-                                        value={newGoal}
-                                        onChange={(e) => setNewGoal(e.target.value)}
-                                        placeholder="Add a goal..."
-                                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addGoal())}
-                                    />
-                                    <Button onClick={addGoal}>Add</Button>
-                                </TagInputWrapper>
-                                <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
-                                    <Button onClick={handleGoalsSave}><FaCheck /> Save</Button>
-                                    <Button onClick={() => setIsEditingGoals(false)}><FaTimes /> Cancel</Button>
-                                </div>
                             </div>
-                        ) : (
-                            <TagContainer>
-                                {profile.goals && profile.goals.length > 0 ? 
-                                    profile.goals.map((goal, index) => (
-                                        <Tag key={index}>{goal}</Tag>
-                                    )) : 
-                                    <FieldValue>No goals added yet.</FieldValue>
-                                }
-                            </TagContainer>
                         )}
                     </InfoSection>
                 </ProfileInfo>

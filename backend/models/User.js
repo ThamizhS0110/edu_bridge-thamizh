@@ -19,7 +19,7 @@ const userSchema = new mongoose.Schema({
     },
     student: { 
         type: String, 
-        enum: ['school', 'college'], 
+        enum: ['junior', 'senior'], 
         required: true 
     },
     // Image stored as binary data
@@ -107,5 +107,6 @@ userSchema.index({ email: 1 });
 userSchema.index({ student: 1 });
 userSchema.index({ college: 1 });
 userSchema.index({ school: 1 });
+userSchema.index({ grade: 1 });
 
 module.exports = mongoose.model('User', userSchema);

@@ -22,11 +22,10 @@ const Label = styled.label`
 
 
 const RegisterPage = () => {
-    const [username, setUsername] = useState('');
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [role, setRole] = useState('junior');
+    const [student, setStudent] = useState('junior');
     const navigate = useNavigate();
     const { register } = useAuth();
     const [loading, setLoading] = useState(false);
@@ -35,7 +34,7 @@ const RegisterPage = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
-        const success = await register({ username, name, email, password, role });
+        const success = await register({ name, email, password, student });
         setLoading(false);
         if (success) {
             toast.success('Registration successful! Please login.', {
@@ -53,17 +52,6 @@ const RegisterPage = () => {
 
     return (
         <AuthForm title="Register" onSubmit={handleSubmit}>
-            <FormField>
-                <Label htmlFor="username">Username</Label>
-                <Input
-                    type="text"
-                    id="username"
-                    placeholder="Choose a username"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    required
-                />
-            </FormField>
             <FormField>
                 <Label htmlFor="name">Full Name</Label>
                 <Input
@@ -98,10 +86,10 @@ const RegisterPage = () => {
                 />
             </FormField>
             <FormField>
-                <Label htmlFor="role">I am a:</Label>
-                <select id="role" value={role} onChange={(e) => setRole(e.target.value)} required>
-                    <option value="junior">12th Grade Student</option>
-                    <option value="senior">College Senior</option>
+                <Label htmlFor="student">I am a:</Label>
+                <select id="student" value={student} onChange={(e) => setStudent(e.target.value)} required>
+                    <option value="junior">Junior (School Student)</option>
+                    <option value="senior">Senior (College Student)</option>
                 </select>
             </FormField>
             <Button type="submit" disabled={loading}>

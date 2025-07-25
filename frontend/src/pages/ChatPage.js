@@ -240,7 +240,7 @@ const ChatPage = () => {
                                 : chat
                         ).sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt))
                     );
-                    toast.info(`New message from ${data.message.sender.name || data.message.sender.username}`, {
+                    toast.info(`New message from ${data.message.sender.name || 'Unknown User'}`, {
                         position: "bottom-left",
                         autoClose: 3000,
                     });
@@ -272,7 +272,7 @@ const ChatPage = () => {
             // Ensure the sender info is correctly structured if adding locally before socket confirms
             setMessages(prevMessages => [...prevMessages, {
                 _id: res.data.chat._id,
-                sender: { _id: user.id, username: user.username, name: user.name },
+                sender: { _id: user.id, name: user.name },
                 content: newMessage,
                 timestamp: new Date()
             }]);
@@ -313,7 +313,7 @@ const ChatPage = () => {
                             >
                                 <ChatAvatar src={partner?.profilePictureUrl || 'https://via.placeholder.com/50?text=User'} alt="Partner" />
                                 <ChatInfo>
-                                    <h4>{partner?.name || partner?.username || 'Unknown User'}</h4>
+                                    <h4>{partner?.name || 'Unknown User'}</h4>
                                     <p>{chat.messages.length > 0 ? chat.messages[chat.messages.length - 1].content : 'No messages yet.'}</p>
                                 </ChatInfo>
                             </ChatItem>
@@ -328,7 +328,7 @@ const ChatPage = () => {
                 <ChatWindowContainer>
                     <ChatHeader>
                         <ChatAvatar src={getChatPartner(selectedChat)?.profilePictureUrl || 'https://via.placeholder.com/50?text=User'} alt="Partner" />
-                        <h3>{getChatPartner(selectedChat)?.name || getChatPartner(selectedChat)?.username || 'Unknown User'}</h3>
+                        <h3>{getChatPartner(selectedChat)?.name || 'Unknown User'}</h3>
                     </ChatHeader>
                     <MessagesContainer>
                         {messages.map((message) => (
